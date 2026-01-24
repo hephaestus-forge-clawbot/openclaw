@@ -5,7 +5,9 @@ import path from "node:path";
 import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
 import type { Api, Model } from "@mariozechner/pi-ai";
 
+import type { ClawdbotConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import { parseBooleanValue } from "../utils/boolean.js";
 import { resolveUserPath } from "../utils.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -33,6 +35,11 @@ type PayloadLogConfig = {
   filePath: string;
 };
 
+type PayloadLogInit = {
+  cfg?: ClawdbotConfig;
+  env?: NodeJS.ProcessEnv;
+};
+
 type PayloadLogWriter = {
   filePath: string;
   write: (line: string) => void;
@@ -41,9 +48,12 @@ type PayloadLogWriter = {
 const writers = new Map<string, PayloadLogWriter>();
 const log = createSubsystemLogger("agent/anthropic-payload");
 
-function resolvePayloadLogConfig(env: NodeJS.ProcessEnv): PayloadLogConfig {
-  const enabled = parseBooleanValue(env.CLAWDBOT_ANTHROPIC_PAYLOAD_LOG) ?? false;
-  const fileOverride = env.CLAWDBOT_ANTHROPIC_PAYLOAD_LOG_FILE?.trim();
+function resolvePayloadLogConfig(params: PayloadLogInit): PayloadLogConfig {
+  const env = params.env ?? process.env;
+  const config = params.cfg?.diagnostics?.anthropicPayloadLog;
+  const envEnabled = parseBooleanValue(env.CLAWDBOT_ANTHROPIC_PAYLOAD_LOG);
+  const enabled = envEnabled ?? config?.enabled ?? false;
+  const fileOverride = config?.filePath?.trim() || env.CLAWDBOT_ANTHROPIC_PAYLOAD_LOG_FILE?.trim();
   const filePath = fileOverride
     ? resolveUserPath(fileOverride)
     : path.join(resolveStateDir(env), "logs", "anthropic-payload.jsonl");
@@ -112,11 +122,13 @@ function findLastAssistantUsage(messages: AgentMessage[]): Record<string, unknow
 
 export type AnthropicPayloadLogger = {
   enabled: true;
+  filePath: string;
   wrapStreamFn: (streamFn: StreamFn) => StreamFn;
   recordUsage: (messages: AgentMessage[], error?: unknown) => void;
 };
 
 export function createAnthropicPayloadLogger(params: {
+  cfg?: ClawdbotConfig;
   env?: NodeJS.ProcessEnv;
   runId?: string;
   sessionId?: string;
@@ -125,12 +137,14 @@ export function createAnthropicPayloadLogger(params: {
   modelId?: string;
   modelApi?: string | null;
   workspaceDir?: string;
+  writer?: PayloadLogWriter;
 }): AnthropicPayloadLogger | null {
   const env = params.env ?? process.env;
-  const cfg = resolvePayloadLogConfig(env);
+  const cfg = resolvePayloadLogConfig({ env, cfg: params.cfg });
   if (!cfg.enabled) return null;
+  if (params.modelApi !== "anthropic-messages") return null;
 
-  const writer = getWriter(cfg.filePath);
+  const writer = params.writer ?? getWriter(cfg.filePath);
   const base: Omit<PayloadLogEvent, "ts" | "stage"> = {
     runId: params.runId,
     sessionId: params.sessionId,
@@ -163,7 +177,7 @@ export function createAnthropicPayloadLogger(params: {
         options?.onPayload?.(payload);
       };
       return streamFn(model, context, {
-        ...(options ?? {}),
+        ...options,
         onPayload: nextOnPayload,
       });
     };
@@ -178,7 +192,7 @@ export function createAnthropicPayloadLogger(params: {
           ...base,
           ts: new Date().toISOString(),
           stage: "usage",
-          error: String(error),
+          error: formatErrorMessage(error),
         });
       }
       return;
@@ -188,7 +202,7 @@ export function createAnthropicPayloadLogger(params: {
       ts: new Date().toISOString(),
       stage: "usage",
       usage,
-      error: error ? String(error) : undefined,
+      error: error ? formatErrorMessage(error) : undefined,
     });
     log.info("anthropic usage", {
       runId: params.runId,
@@ -197,6 +211,6 @@ export function createAnthropicPayloadLogger(params: {
     });
   };
 
-  log.info("anthropic payload logger enabled", { filePath: writer.filePath });
-  return { enabled: true, wrapStreamFn, recordUsage };
+  log.info("anthropic payload logger enabled", { filePath: cfg.filePath });
+  return { enabled: true, filePath: cfg.filePath, wrapStreamFn, recordUsage };
 }

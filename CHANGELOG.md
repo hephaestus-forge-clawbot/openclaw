@@ -12,6 +12,7 @@ Docs: https://docs.clawd.bot
 - CLI: add live auth probes to `clawdbot models status` for per-profile verification.
 - CLI: add `clawdbot system` for system events + heartbeat controls; remove standalone `wake`.
 - Agents: add Bedrock auto-discovery defaults + config overrides. (#1553) Thanks @fal3.
+- Agents: add diagnostics-configured Anthropic payload logging. (#1501) Thanks @parubets.
 - Docs: add cron vs heartbeat decision guide (with Lobster workflow notes). (#1533) Thanks @JustYannicc.
 - Docs: clarify HEARTBEAT.md empty file skips heartbeats, missing file still runs. (#1535) Thanks @JustYannicc.
 - Markdown: add per-channel table conversion (bullets for Signal/WhatsApp, code blocks elsewhere). (#1495) Thanks @odysseus0.

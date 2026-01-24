@@ -133,10 +133,16 @@ export type DiagnosticsCacheTraceConfig = {
   includeSystem?: boolean;
 };
 
+export type DiagnosticsAnthropicPayloadLogConfig = {
+  enabled?: boolean;
+  filePath?: string;
+};
+
 export type DiagnosticsConfig = {
   enabled?: boolean;
   otel?: DiagnosticsOtelConfig;
   cacheTrace?: DiagnosticsCacheTraceConfig;
+  anthropicPayloadLog?: DiagnosticsAnthropicPayloadLogConfig;
 };
 
 export type WebReconnectConfig = {
