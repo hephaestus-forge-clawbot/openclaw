@@ -108,6 +108,10 @@ export class ExecApprovalManager {
     if (!pending) {
       return false;
     }
+    // Prevent double-resolve (e.g., if called after timeout already resolved)
+    if (pending.record.resolvedAtMs !== undefined) {
+      return false;
+    }
     clearTimeout(pending.timer);
     pending.record.resolvedAtMs = Date.now();
     pending.record.decision = decision;
@@ -120,7 +124,7 @@ export class ExecApprovalManager {
       if (this.pending.get(recordId) === pending) {
         this.pending.delete(recordId);
       }
-    }, 5000);
+    }, RESOLVED_ENTRY_GRACE_MS);
     return true;
   }
 
