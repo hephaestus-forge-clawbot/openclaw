@@ -15,5 +15,12 @@ describe("buildExplorerSnapshot", () => {
 
     const tokenField = gatewaySection?.fields.find((field) => field.path === "gateway.auth.token");
     expect(tokenField?.sensitive).toBe(true);
+    expect(tokenField?.kind).toBe("string");
+    expect(tokenField?.editable).toBe(true);
+
+    const wildcardField = snapshot.sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.path.includes("*"));
+    expect(wildcardField?.editable).toBe(false);
   });
 });

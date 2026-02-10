@@ -1,5 +1,15 @@
 import { LitElement, html, nothing } from "lit";
 import {
+  clearFieldValue,
+  getFieldValue,
+  loadPersistedDraft,
+  persistDraft,
+  resetDraft,
+  setFieldValue,
+  type ConfigDraft,
+} from "../lib/config-store.ts";
+import { downloadJson5File, formatConfigJson5 } from "../lib/json5-format.ts";
+import {
   buildExplorerSnapshot,
   type ExplorerField,
   type ExplorerSection,
@@ -10,6 +20,8 @@ type AppState =
   | { status: "loading" }
   | { status: "ready"; snapshot: ExplorerSnapshot }
   | { status: "error"; message: string };
+
+type CopyState = "idle" | "copied" | "failed";
 
 function includesQuery(value: string, query: string): boolean {
   return value.toLowerCase().includes(query);
@@ -43,8 +55,11 @@ function sectionGlyph(label: string): string {
 
 class ConfigBuilderApp extends LitElement {
   private state: AppState = { status: "loading" };
+  private config: ConfigDraft = {};
   private selectedSectionId: string | null = null;
   private searchQuery = "";
+  private copyState: CopyState = "idle";
+  private copyResetTimer: number | null = null;
 
   override createRenderRoot() {
     // Match the existing OpenClaw web UI approach (global CSS classes/tokens).
@@ -56,8 +71,17 @@ class ConfigBuilderApp extends LitElement {
     this.bootstrap();
   }
 
+  override disconnectedCallback(): void {
+    if (this.copyResetTimer != null) {
+      window.clearTimeout(this.copyResetTimer);
+      this.copyResetTimer = null;
+    }
+    super.disconnectedCallback();
+  }
+
   private bootstrap(): void {
     try {
+      this.config = loadPersistedDraft();
       const snapshot = buildExplorerSnapshot();
       this.state = { status: "ready", snapshot };
     } catch (error) {
@@ -74,6 +98,83 @@ class ConfigBuilderApp extends LitElement {
 
   private setSearchQuery(raw: string): void {
     this.searchQuery = raw.trim().toLowerCase();
+    this.requestUpdate();
+  }
+
+  private saveConfig(next: ConfigDraft): void {
+    this.config = next;
+    persistDraft(next);
+    this.requestUpdate();
+  }
+
+  private clearField(path: string): void {
+    this.saveConfig(clearFieldValue(this.config, path));
+  }
+
+  private setField(path: string, value: unknown): void {
+    this.saveConfig(setFieldValue(this.config, path, value));
+  }
+
+  private resetAllFields(): void {
+    this.saveConfig(resetDraft());
+  }
+
+  private parseAndSetField(field: ExplorerField, raw: string): void {
+    const trimmed = raw.trim();
+
+    if (trimmed.length === 0) {
+      this.clearField(field.path);
+      return;
+    }
+
+    if (field.kind === "number" || field.kind === "integer") {
+      const parsed = Number(trimmed);
+      if (Number.isNaN(parsed)) {
+        return;
+      }
+      this.setField(field.path, field.kind === "integer" ? Math.trunc(parsed) : parsed);
+      return;
+    }
+
+    if (field.kind === "boolean") {
+      if (trimmed === "true") {
+        this.setField(field.path, true);
+        return;
+      }
+      if (trimmed === "false") {
+        this.setField(field.path, false);
+      }
+      return;
+    }
+
+    if (field.kind === "enum") {
+      if (field.enumValues.includes(trimmed)) {
+        this.setField(field.path, trimmed);
+      }
+      return;
+    }
+
+    this.setField(field.path, raw);
+  }
+
+  private async copyPreview(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.copyState = "copied";
+    } catch {
+      this.copyState = "failed";
+    }
+
+    if (this.copyResetTimer != null) {
+      window.clearTimeout(this.copyResetTimer);
+    }
+
+    this.copyResetTimer = window.setTimeout(() => {
+      this.copyState = "idle";
+      this.copyResetTimer = null;
+      this.requestUpdate();
+    }, 1500);
+
     this.requestUpdate();
   }
 
@@ -144,9 +245,9 @@ class ConfigBuilderApp extends LitElement {
         <div class="config-sidebar__header">
           <div>
             <div class="config-sidebar__title">Config Builder</div>
-            <div class="builder-subtitle">Explorer scaffold</div>
+            <div class="builder-subtitle">Explorer + JSON5 preview</div>
           </div>
-          <span class="pill pill--sm pill--ok">ready</span>
+          <span class="pill pill--sm pill--ok">phase 2</span>
         </div>
 
         ${this.renderSearch()}
@@ -179,25 +280,105 @@ class ConfigBuilderApp extends LitElement {
 
         <div class="config-sidebar__footer">
           <div class="builder-footer-note">
-            Read-only schema explorer using OpenClaw config hints.
+            Draft values persist in localStorage and render to JSON5 preview.
           </div>
         </div>
       </aside>
     `;
   }
 
-  private renderField(field: ExplorerField) {
+  private renderFieldControl(field: ExplorerField, value: unknown) {
+    if (!field.editable) {
+      return html`<div class="cfg-field__help">Phase 2 edits only primitive concrete paths.</div>`;
+    }
+
+    if (field.kind === "boolean") {
+      return html`
+        <label class="cfg-toggle-row builder-toggle-row">
+          <span class="cfg-field__help">Toggle to set this boolean value.</span>
+          <div class="cfg-toggle">
+            <input
+              type="checkbox"
+              .checked=${value === true}
+              @change=${(event: Event) =>
+                this.setField(field.path, (event.target as HTMLInputElement).checked)}
+            />
+            <span class="cfg-toggle__track"></span>
+          </div>
+        </label>
+      `;
+    }
+
+    if (field.kind === "enum") {
+      const selectValue = typeof value === "string" ? value : "";
+      return html`
+        <select
+          class="cfg-select"
+          .value=${selectValue}
+          @change=${(event: Event) => {
+            const next = (event.target as HTMLSelectElement).value;
+            if (!next) {
+              this.clearField(field.path);
+              return;
+            }
+            this.setField(field.path, next);
+          }}
+        >
+          <option value="">(unset)</option>
+          ${field.enumValues.map((option) => html`<option value=${option}>${option}</option>`)}
+        </select>
+      `;
+    }
+
+    if (field.kind === "number" || field.kind === "integer") {
+      const textValue = typeof value === "number" ? String(value) : "";
+      return html`
+        <input
+          class="cfg-input"
+          type="number"
+          .value=${textValue}
+          @input=${(event: Event) =>
+            this.parseAndSetField(field, (event.target as HTMLInputElement).value)}
+        />
+      `;
+    }
+
+    const textValue = typeof value === "string" ? value : "";
     return html`
-      <div class="cfg-field builder-field">
+      <input
+        class="cfg-input"
+        type=${field.sensitive ? "password" : "text"}
+        .value=${textValue}
+        @input=${(event: Event) => this.parseAndSetField(field, (event.target as HTMLInputElement).value)}
+      />
+    `;
+  }
+
+  private renderField(field: ExplorerField) {
+    const value = getFieldValue(this.config, field.path);
+    const hasValue = value !== undefined;
+
+    return html`
+      <div class="cfg-field builder-field ${hasValue ? "builder-field--set" : ""}">
         <div class="builder-field__head">
           <div class="cfg-field__label">${field.label}</div>
           <div class="builder-field__badges">
+            ${hasValue ? html`<span class="pill pill--sm">set</span>` : nothing}
             ${field.sensitive ? html`<span class="pill pill--sm pill--danger">sensitive</span>` : nothing}
             ${field.advanced ? html`<span class="pill pill--sm">advanced</span>` : nothing}
+            <span class="pill pill--sm mono">${field.kind}</span>
           </div>
         </div>
+
         <div class="builder-field__path mono">${field.path}</div>
+
         ${field.help ? html`<div class="cfg-field__help">${field.help}</div>` : nothing}
+
+        <div class="builder-field__controls">${this.renderFieldControl(field, value)}</div>
+
+        <div class="builder-field__actions">
+          <button class="btn btn--sm" @click=${() => this.clearField(field.path)}>Clear</button>
+        </div>
       </div>
     `;
   }
@@ -236,6 +417,33 @@ class ConfigBuilderApp extends LitElement {
     `;
   }
 
+  private renderPreview() {
+    const preview = formatConfigJson5(this.config);
+
+    return html`
+      <aside class="builder-preview">
+        <div class="builder-preview__header">
+          <div class="builder-preview__title mono">openclaw.json</div>
+          <div class="builder-preview__meta mono">${preview.lineCount} lines · ${preview.byteCount} B</div>
+        </div>
+
+        <pre class="builder-preview__code code-block">${preview.text}</pre>
+
+        <div class="builder-preview__footer">
+          <button class="btn btn--sm" @click=${() => this.copyPreview(preview.text)}>
+            ${this.copyState === "copied"
+              ? "Copied"
+              : this.copyState === "failed"
+                ? "Copy failed"
+                : "Copy"}
+          </button>
+          <button class="btn btn--sm" @click=${() => downloadJson5File(preview.text)}>Download</button>
+          <button class="btn btn--sm danger" @click=${() => this.resetAllFields()}>Reset all</button>
+        </div>
+      </aside>
+    `;
+  }
+
   override render() {
     if (this.state.status === "loading") {
       return html`<div class="builder-screen"><div class="card">Loading schema explorer…</div></div>`;
@@ -256,7 +464,7 @@ class ConfigBuilderApp extends LitElement {
           <main class="config-main">
             <div class="config-actions">
               <div class="config-actions__left">
-                <span class="config-status">Schema explorer (read-only)</span>
+                <span class="config-status">Phase 2: sparse state + live JSON5 preview</span>
               </div>
               <div class="config-actions__right">
                 <span class="pill pill--sm">sections: ${snapshot.sectionCount}</span>
@@ -273,6 +481,8 @@ class ConfigBuilderApp extends LitElement {
               ${this.renderSections(visibleSections)}
             </div>
           </main>
+
+          ${this.renderPreview()}
         </div>
       </div>
     `;

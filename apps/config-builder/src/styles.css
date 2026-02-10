@@ -110,3 +110,87 @@ config-builder-app {
     min-height: 100vh;
   }
 }
+
+/* Phase 2 layout: add dedicated JSON5 preview panel. */
+.builder-layout.config-layout {
+  grid-template-columns: 260px minmax(0, 1fr) 400px;
+}
+
+.builder-preview {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  background: var(--bg-accent);
+  border-left: 1px solid var(--border);
+}
+
+.builder-preview__header,
+.builder-preview__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.builder-preview__footer {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  justify-content: flex-start;
+}
+
+.builder-preview__title {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.builder-preview__meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.builder-preview__code {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow: auto;
+  padding: 12px;
+}
+
+.builder-field--set {
+  border-color: var(--border-strong);
+}
+
+.builder-field__controls {
+  display: grid;
+  gap: 8px;
+}
+
+.builder-field__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.builder-toggle-row {
+  margin: 0;
+}
+
+@media (max-width: 1500px) {
+  .builder-layout.config-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .builder-preview {
+    grid-column: 1 / -1;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    min-height: 320px;
+  }
+}
