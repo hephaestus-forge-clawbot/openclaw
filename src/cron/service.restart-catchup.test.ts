@@ -35,6 +35,10 @@ describe("CronService restart catch-up", () => {
     vi.useRealTimers();
   });
 
+  // HEPHIE: After our fix, missed jobs are identified inside the lock but
+  // executed OUTSIDE the lock during start(). start() still awaits completion,
+  // so these tests work with fake timers and synchronous assertions.
+
   it("executes an overdue recurring job immediately on start", async () => {
     const store = await makeStorePath();
     const enqueueSystemEvent = vi.fn();
@@ -83,6 +87,8 @@ describe("CronService restart catch-up", () => {
       runIsolatedAgentJob: vi.fn(async () => ({ status: "ok" })),
     });
 
+    // HEPHIE: start() now executes missed jobs outside the lock but still
+    // awaits them, so assertions work immediately after start() returns.
     await cron.start();
 
     expect(enqueueSystemEvent).toHaveBeenCalledWith("digest now", { agentId: undefined });

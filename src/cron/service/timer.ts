@@ -24,6 +24,19 @@ const MAX_TIMER_DELAY_MS = 60_000;
 const DEFAULT_JOB_TIMEOUT_MS = 10 * 60_000; // 10 minutes
 
 /**
+ * HEPHIE: Delay in ms between starting consecutive due jobs when multiple
+ * fire simultaneously (e.g. after gateway restart). Prevents thundering-herd
+ * API saturation with 429 rate-limit errors.
+ */
+const STAGGER_BETWEEN_JOBS_MS = 4_000; // 4 seconds between job starts
+
+/**
+ * HEPHIE: Minimum number of simultaneous due jobs before staggering kicks in.
+ * Small batches (1-2 jobs) don't cause saturation and run without delay.
+ */
+const STAGGER_THRESHOLD = 3;
+
+/**
  * Exponential backoff delays (in ms) indexed by consecutive error count.
  * After the last entry the delay stays constant.
  */
@@ -222,7 +235,26 @@ export async function onTimer(state: CronServiceState) {
       endedAt: number;
     }> = [];
 
-    for (const { id, job } of dueJobs) {
+    // HEPHIE: When many jobs are due simultaneously (e.g. after restart with 3+
+    // overdue jobs), stagger their execution to prevent thundering-herd API
+    // saturation (429 rate-limit errors). Only stagger when the batch is large
+    // enough to cause saturation (>= 3 jobs). Small batches (1-2) run without delay.
+    const staggerDelayMs = dueJobs.length >= STAGGER_THRESHOLD ? STAGGER_BETWEEN_JOBS_MS : 0;
+    if (staggerDelayMs > 0) {
+      state.deps.log.info(
+        { count: dueJobs.length, staggerDelayMs },
+        "cron: staggering execution of multiple due jobs",
+      );
+    }
+
+    for (let jobIdx = 0; jobIdx < dueJobs.length; jobIdx++) {
+      const { id, job } = dueJobs[jobIdx];
+
+      // Stagger: add a delay between job starts (skip for the first job).
+      if (jobIdx > 0 && staggerDelayMs > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, staggerDelayMs));
+      }
+
       const startedAt = state.deps.nowMs();
       job.state.runningAtMs = startedAt;
       emit(state, { jobId: job.id, action: "started", runAtMs: startedAt });
@@ -357,12 +389,17 @@ function findDueJobs(state: CronServiceState): CronJob[] {
   });
 }
 
-export async function runMissedJobs(state: CronServiceState) {
+/**
+ * HEPHIE: Find jobs that were due but missed (e.g. during gateway downtime).
+ * Exported so start() can identify missed jobs inside the lock, then execute
+ * them outside the lock to keep management APIs responsive.
+ */
+export function findMissedJobs(state: CronServiceState, now?: number): CronJob[] {
   if (!state.store) {
-    return;
+    return [];
   }
-  const now = state.deps.nowMs();
-  const missed = state.store.jobs.filter((j) => {
+  const nowMs = now ?? state.deps.nowMs();
+  return state.store.jobs.filter((j) => {
     if (!j.state) {
       j.state = {};
     }
@@ -375,12 +412,19 @@ export async function runMissedJobs(state: CronServiceState) {
     const next = j.state.nextRunAtMs;
     if (j.schedule.kind === "at" && j.state.lastStatus) {
       // Any terminal status (ok, error, skipped) means the job already
-      // ran at least once.  Don't re-fire it on restart — applyJobResult
-      // disables one-shot jobs, but guard here defensively (#13845).
+      // ran at least once. Don't re-fire it on restart (#13845).
       return false;
     }
-    return typeof next === "number" && now >= next;
+    return typeof next === "number" && nowMs >= next;
   });
+}
+
+export async function runMissedJobs(state: CronServiceState) {
+  if (!state.store) {
+    return;
+  }
+  const now = state.deps.nowMs();
+  const missed = findMissedJobs(state, now);
 
   if (missed.length > 0) {
     state.deps.log.info(
@@ -392,6 +436,12 @@ export async function runMissedJobs(state: CronServiceState) {
     }
   }
 }
+
+// HEPHIE: The old runMissedJobsStaggered function has been replaced by
+// staggering logic built into onTimer itself (STAGGER_BETWEEN_JOBS_MS).
+// This is simpler and works correctly with both real and fake timers in tests.
+// The onTimer function naturally picks up past-due jobs on its first tick
+// after start(), and staggers their execution with delays between each job.
 
 export async function runDueJobs(state: CronServiceState) {
   if (!state.store) {

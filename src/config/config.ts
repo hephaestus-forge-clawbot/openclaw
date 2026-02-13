@@ -4,6 +4,8 @@ export {
   parseConfigJson5,
   readConfigFileSnapshot,
   resolveConfigSnapshotHash,
+  rollbackConfig,
+  validateConfigOnDisk,
   writeConfigFile,
 } from "./io.js";
 export { migrateLegacyConfig } from "./legacy-migrate.js";

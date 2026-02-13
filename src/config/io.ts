@@ -856,3 +856,72 @@ export async function writeConfigFile(cfg: OpenClawConfig): Promise<void> {
   clearConfigCache();
   await createConfigIO().writeConfigFile(cfg);
 }
+
+/**
+ * HEPHIE: Validate the config file currently on disk without loading it into
+ * the runtime. Used as a pre-flight check before gateway restart to catch
+ * invalid configs written directly to disk (bypassing writeConfigFile).
+ *
+ * Returns `{ valid: true }` if the config is OK, or `{ valid: false, error }`
+ * with a human-readable message describing the problem.
+ */
+export async function validateConfigOnDisk(): Promise<
+  { valid: true } | { valid: false; error: string }
+> {
+  try {
+    const snapshot = await readConfigFileSnapshot();
+    if (!snapshot.exists) {
+      return { valid: false, error: "config file does not exist" };
+    }
+    if (!snapshot.valid) {
+      const issues = snapshot.issues
+        .map((issue) => `${issue.path || "<root>"}: ${issue.message}`)
+        .join("; ");
+      return { valid: false, error: `config validation failed: ${issues}` };
+    }
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, error: `config read failed: ${String(err)}` };
+  }
+}
+
+/**
+ * HEPHIE: Attempt to restore the most recent config backup. Used when the
+ * gateway fails to start after a config change. Tries `.bak` first, then
+ * `.bak.1`, `.bak.2`, etc. up to CONFIG_BACKUP_COUNT.
+ *
+ * Returns the path of the backup that was restored, or null if no valid
+ * backup was found.
+ */
+export async function rollbackConfig(): Promise<string | null> {
+  const io = createConfigIO();
+  const configPath = io.configPath;
+  const backupBase = `${configPath}.bak`;
+
+  // Try each backup level: .bak, .bak.1, .bak.2, ...
+  const candidates = [backupBase];
+  for (let i = 1; i < CONFIG_BACKUP_COUNT; i++) {
+    candidates.push(`${backupBase}.${i}`);
+  }
+
+  for (const candidate of candidates) {
+    try {
+      await fs.promises.access(candidate, fs.constants.R_OK);
+      const raw = await fs.promises.readFile(candidate, "utf-8");
+      // Validate the backup before restoring.
+      const parsed = JSON5.parse(raw);
+      const validated = validateConfigObjectWithPlugins(parsed);
+      if (!validated.ok) {
+        continue; // This backup is also bad, try the next one.
+      }
+      // Backup is valid — restore it.
+      await fs.promises.copyFile(candidate, configPath);
+      clearConfigCache();
+      return candidate;
+    } catch {
+      continue; // Missing or unreadable, try next.
+    }
+  }
+
+  return null; // No valid backup found.
+}

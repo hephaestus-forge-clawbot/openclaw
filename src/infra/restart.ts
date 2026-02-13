@@ -179,6 +179,8 @@ export type ScheduledRestart = {
 export function scheduleGatewaySigusr1Restart(opts?: {
   delayMs?: number;
   reason?: string;
+  /** HEPHIE: Skip pre-restart config validation (default: false). */
+  skipConfigValidation?: boolean;
 }): ScheduledRestart {
   const delayMsRaw =
     typeof opts?.delayMs === "number" && Number.isFinite(opts.delayMs)
@@ -192,7 +194,37 @@ export function scheduleGatewaySigusr1Restart(opts?: {
   authorizeGatewaySigusr1Restart(delayMs);
   const pid = process.pid;
   const hasListener = process.listenerCount("SIGUSR1") > 0;
-  setTimeout(() => {
+  setTimeout(async () => {
+    // HEPHIE: Validate config on disk before triggering restart.
+    // If the config is invalid, attempt rollback to prevent a dead gateway.
+    if (!opts?.skipConfigValidation) {
+      try {
+        const { validateConfigOnDisk, rollbackConfig } = await import("../config/io.js");
+        const check = await validateConfigOnDisk();
+        if (!check.valid) {
+          console.error(`[hephie] Pre-restart config validation failed: ${check.error}`);
+          console.error("[hephie] Attempting config rollback...");
+          const restored = await rollbackConfig();
+          if (restored) {
+            console.error(`[hephie] Config restored from backup: ${restored}`);
+            // Re-validate after rollback.
+            const recheck = await validateConfigOnDisk();
+            if (!recheck.valid) {
+              console.error(`[hephie] Rollback config also invalid: ${recheck.error}`);
+              console.error("[hephie] Aborting restart to prevent dead gateway.");
+              return;
+            }
+          } else {
+            console.error("[hephie] No valid backup found. Aborting restart.");
+            return;
+          }
+        }
+      } catch (err) {
+        // If validation itself fails, log but proceed with restart.
+        // Don't block restart on validation infrastructure errors.
+        console.error(`[hephie] Pre-restart config validation error: ${String(err)}`);
+      }
+    }
     try {
       if (hasListener) {
         process.emit("SIGUSR1");
