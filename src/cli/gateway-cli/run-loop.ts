@@ -1,5 +1,8 @@
 import type { startGatewayServer } from "../../gateway/server.js";
 import type { defaultRuntime } from "../../runtime.js";
+import { cleanupStaleLockFiles, releaseAllLocksSync } from "../../agents/session-write-lock.js";
+import { resolveStateDir } from "../../config/paths.js";
+import { resetSessionStoreLockQueues } from "../../config/sessions/store.js";
 import { acquireGatewayLock } from "../../infra/gateway-lock.js";
 import {
   consumeGatewaySigusr1RestartAuthorization,
@@ -124,6 +127,20 @@ export async function runGatewayLoop(params: {
       // coordinator level — rather than inside individual subsystem init
       // functions, to avoid surprising cross-cutting side effects.
       resetAllLanes();
+
+      // Hephie fix: release any in-memory session write locks left over from
+      // the previous lifecycle. Without this, SIGUSR1 restarts can leave
+      // .lock files on disk that block all session operations because the PID
+      // is still alive (same process).
+      releaseAllLocksSync();
+
+      // Hephie fix: reset in-memory session store lock queues so stale queued
+      // tasks from the previous lifecycle don't block the new one.
+      resetSessionStoreLockQueues();
+
+      // Best-effort cleanup of stale .lock files on disk (e.g. from crashes).
+      const stateDir = resolveStateDir();
+      void cleanupStaleLockFiles(stateDir).catch(() => undefined);
     });
 
     // Keep process alive; SIGUSR1 triggers an in-process restart (no supervisor required).

@@ -554,7 +554,14 @@ export async function runAgentTurnWithFallback(params: {
         try {
           // Delete transcript file if it exists
           if (corruptedSessionId) {
-            const transcriptPath = resolveSessionTranscriptPath(corruptedSessionId);
+            // Hephie fix: extract agentId from sessionKey so the transcript
+            // resolves to the correct agent's sessions directory instead of
+            // defaulting to "main".
+            const corruptedAgentId = resolveAgentIdFromSessionKey(sessionKey);
+            const transcriptPath = resolveSessionTranscriptPath(
+              corruptedSessionId,
+              corruptedAgentId,
+            );
             try {
               fs.unlinkSync(transcriptPath);
             } catch {

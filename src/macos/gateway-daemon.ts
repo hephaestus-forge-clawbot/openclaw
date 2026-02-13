@@ -54,6 +54,9 @@ async function main() {
     { enableConsoleCapture, setConsoleTimestampPrefix },
     commandQueueMod,
     { createRestartIterationHook },
+    sessionWriteLockMod,
+    { resolveStateDir },
+    sessionStoreMod,
   ] = await Promise.all([
     import("../config/config.js"),
     import("../gateway/server.js"),
@@ -65,6 +68,9 @@ async function main() {
     import("../logging.js"),
     import("../process/command-queue.js"),
     import("../process/restart-recovery.js"),
+    import("../agents/session-write-lock.js"),
+    import("../config/paths.js"),
+    import("../config/sessions/store.js"),
   ] as const);
 
   enableConsoleCapture();
@@ -224,6 +230,18 @@ async function main() {
       // counts elevated (their finally blocks never ran), permanently blocking
       // new work from draining.
       commandQueueMod.resetAllLanes();
+
+      // Hephie fix: release any in-memory session write locks left over from
+      // the previous lifecycle. Without this, SIGUSR1 restarts can leave
+      // .lock files on disk that block all session operations.
+      sessionWriteLockMod.releaseAllLocksSync();
+
+      // Hephie fix: reset in-memory session store lock queues.
+      sessionStoreMod.resetSessionStoreLockQueues();
+
+      // Best-effort cleanup of stale .lock files on disk (e.g. from crashes).
+      const stateDir = resolveStateDir();
+      void sessionWriteLockMod.cleanupStaleLockFiles(stateDir).catch(() => undefined);
     });
 
     // eslint-disable-next-line no-constant-condition
