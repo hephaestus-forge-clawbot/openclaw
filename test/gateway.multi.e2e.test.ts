@@ -93,7 +93,7 @@ const spawnGatewayInstance = async (name: string): Promise<GatewayInstance> => {
   const hookToken = `token-${name}-${randomUUID()}`;
   const gatewayToken = `gateway-${name}-${randomUUID()}`;
   const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), `openclaw-e2e-${name}-`));
-  const configDir = path.join(homeDir, ".openclaw");
+  const configDir = path.join(homeDir, ".hephie");
   await fs.mkdir(configDir, { recursive: true });
   const configPath = path.join(configDir, "openclaw.json");
   const stateDir = path.join(configDir, "state");

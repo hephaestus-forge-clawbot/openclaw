@@ -11,7 +11,7 @@ describe("config pruning defaults", () => {
     process.env.ANTHROPIC_API_KEY = "";
     process.env.ANTHROPIC_OAUTH_TOKEN = "";
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".openclaw");
+      const configDir = path.join(home, ".hephie");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
         path.join(configDir, "openclaw.json"),
@@ -37,7 +37,7 @@ describe("config pruning defaults", () => {
 
   it("enables cache-ttl pruning + 1h heartbeat for Anthropic OAuth", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".openclaw");
+      const configDir = path.join(home, ".hephie");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
         path.join(configDir, "openclaw.json"),
@@ -66,7 +66,7 @@ describe("config pruning defaults", () => {
 
   it("enables cache-ttl pruning + 1h cache TTL for Anthropic API keys", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".openclaw");
+      const configDir = path.join(home, ".hephie");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
         path.join(configDir, "openclaw.json"),
@@ -102,7 +102,7 @@ describe("config pruning defaults", () => {
 
   it("does not override explicit contextPruning mode", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".openclaw");
+      const configDir = path.join(home, ".hephie");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
         path.join(configDir, "openclaw.json"),

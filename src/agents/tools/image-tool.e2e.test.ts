@@ -224,7 +224,7 @@ describe("image tool implicit imageModel config", () => {
 
     const res = await tool.execute("t1", {
       prompt: "Describe the image.",
-      image: "@/Users/steipete/.openclaw/media/inbound/photo.png",
+      image: "@/Users/steipete/.hephie/media/inbound/photo.png",
     });
 
     expect(fetch).toHaveBeenCalledTimes(1);

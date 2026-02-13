@@ -98,7 +98,7 @@ describe("trigger handling", () => {
   it("reports active auth profile and key snippet in status", async () => {
     await withTempHome(async (home) => {
       const cfg = makeCfg(home);
-      const agentDir = join(home, ".openclaw", "agents", "main", "agent");
+      const agentDir = join(home, ".hephie", "agents", "main", "agent");
       await fs.mkdir(agentDir, { recursive: true });
       await fs.writeFile(
         join(agentDir, "auth-profiles.json"),

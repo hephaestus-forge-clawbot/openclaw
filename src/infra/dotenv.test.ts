@@ -10,7 +10,7 @@ async function writeEnvFile(filePath: string, contents: string) {
 }
 
 describe("loadDotEnv", () => {
-  it("loads ~/.openclaw/.env as fallback without overriding CWD .env", async () => {
+  it("loads ~/.hephie/.env as fallback without overriding CWD .env", async () => {
     const prevEnv = { ...process.env };
     const prevCwd = process.cwd();
 

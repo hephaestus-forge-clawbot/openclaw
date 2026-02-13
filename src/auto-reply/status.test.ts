@@ -351,7 +351,7 @@ describe("buildStatusMessage", () => {
         const sessionId = "sess-1";
         const logPath = path.join(
           dir,
-          ".openclaw",
+          ".hephie",
           "agents",
           "main",
           "sessions",
@@ -410,7 +410,7 @@ describe("buildStatusMessage", () => {
         const sessionId = "sess-worker1";
         const logPath = path.join(
           dir,
-          ".openclaw",
+          ".hephie",
           "agents",
           "worker1",
           "sessions",
@@ -469,7 +469,7 @@ describe("buildStatusMessage", () => {
         const sessionId = "sess-worker2";
         const logPath = path.join(
           dir,
-          ".openclaw",
+          ".hephie",
           "agents",
           "worker2",
           "sessions",

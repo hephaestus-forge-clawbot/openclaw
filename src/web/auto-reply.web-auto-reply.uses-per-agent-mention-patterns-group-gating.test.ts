@@ -201,7 +201,7 @@ describe("web auto-reply", () => {
           groups: { "*": { requireMention: false } },
         },
       },
-      messages: { groupChat: { mentionPatterns: ["@openclaw"] } },
+      messages: { groupChat: { mentionPatterns: [".hephie"] } },
     }));
 
     let capturedOnMessage:
@@ -249,7 +249,7 @@ describe("web auto-reply", () => {
           groups: { "999@g.us": { requireMention: false } },
         },
       },
-      messages: { groupChat: { mentionPatterns: ["@openclaw"] } },
+      messages: { groupChat: { mentionPatterns: [".hephie"] } },
     }));
 
     let capturedOnMessage:
@@ -302,7 +302,7 @@ describe("web auto-reply", () => {
           },
         },
       },
-      messages: { groupChat: { mentionPatterns: ["@openclaw"] } },
+      messages: { groupChat: { mentionPatterns: [".hephie"] } },
     }));
 
     let capturedOnMessage:

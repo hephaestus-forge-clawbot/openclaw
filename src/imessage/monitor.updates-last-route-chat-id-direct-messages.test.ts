@@ -81,7 +81,7 @@ beforeEach(() => {
     },
     session: { mainKey: "main" },
     messages: {
-      groupChat: { mentionPatterns: ["@openclaw"] },
+      groupChat: { mentionPatterns: [".hephie"] },
     },
   };
   requestMock.mockReset().mockImplementation((method: string) => {

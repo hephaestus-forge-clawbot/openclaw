@@ -37,16 +37,12 @@ describe("schtasks runtime parsing", () => {
 describe("resolveTaskScriptPath", () => {
   it("uses default path when OPENCLAW_PROFILE is default", () => {
     const env = { USERPROFILE: "C:\\Users\\test", OPENCLAW_PROFILE: "default" };
-    expect(resolveTaskScriptPath(env)).toBe(
-      path.join("C:\\Users\\test", ".openclaw", "gateway.cmd"),
-    );
+    expect(resolveTaskScriptPath(env)).toBe(path.join("C:\\Users\\test", ".hephie", "gateway.cmd"));
   });
 
   it("uses default path when OPENCLAW_PROFILE is unset", () => {
     const env = { USERPROFILE: "C:\\Users\\test" };
-    expect(resolveTaskScriptPath(env)).toBe(
-      path.join("C:\\Users\\test", ".openclaw", "gateway.cmd"),
-    );
+    expect(resolveTaskScriptPath(env)).toBe(path.join("C:\\Users\\test", ".hephie", "gateway.cmd"));
   });
 
   it("uses profile-specific path when OPENCLAW_PROFILE is set to a custom value", () => {
@@ -67,16 +63,12 @@ describe("resolveTaskScriptPath", () => {
 
   it("handles case-insensitive 'Default' profile", () => {
     const env = { USERPROFILE: "C:\\Users\\test", OPENCLAW_PROFILE: "Default" };
-    expect(resolveTaskScriptPath(env)).toBe(
-      path.join("C:\\Users\\test", ".openclaw", "gateway.cmd"),
-    );
+    expect(resolveTaskScriptPath(env)).toBe(path.join("C:\\Users\\test", ".hephie", "gateway.cmd"));
   });
 
   it("handles case-insensitive 'DEFAULT' profile", () => {
     const env = { USERPROFILE: "C:\\Users\\test", OPENCLAW_PROFILE: "DEFAULT" };
-    expect(resolveTaskScriptPath(env)).toBe(
-      path.join("C:\\Users\\test", ".openclaw", "gateway.cmd"),
-    );
+    expect(resolveTaskScriptPath(env)).toBe(path.join("C:\\Users\\test", ".hephie", "gateway.cmd"));
   });
 
   it("trims whitespace from OPENCLAW_PROFILE", () => {
@@ -88,7 +80,7 @@ describe("resolveTaskScriptPath", () => {
 
   it("falls back to HOME when USERPROFILE is not set", () => {
     const env = { HOME: "/home/test", OPENCLAW_PROFILE: "default" };
-    expect(resolveTaskScriptPath(env)).toBe(path.join("/home/test", ".openclaw", "gateway.cmd"));
+    expect(resolveTaskScriptPath(env)).toBe(path.join("/home/test", ".hephie", "gateway.cmd"));
   });
 });
 
@@ -96,7 +88,7 @@ describe("readScheduledTaskCommand", () => {
   it("parses basic command script", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,
@@ -117,7 +109,7 @@ describe("readScheduledTaskCommand", () => {
   it("parses script with working directory", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,
@@ -139,7 +131,7 @@ describe("readScheduledTaskCommand", () => {
   it("parses script with environment variables", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,
@@ -164,7 +156,7 @@ describe("readScheduledTaskCommand", () => {
   it("parses script with quoted arguments containing spaces", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       // Use forward slashes which work in Windows cmd and avoid escape parsing issues
       await fs.writeFile(
@@ -197,7 +189,7 @@ describe("readScheduledTaskCommand", () => {
   it("returns null when script has no command", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,
@@ -216,7 +208,7 @@ describe("readScheduledTaskCommand", () => {
   it("parses full script with all components", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,
@@ -248,7 +240,7 @@ describe("readScheduledTaskCommand", () => {
   it("parses command with Windows backslash paths", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,
@@ -278,7 +270,7 @@ describe("readScheduledTaskCommand", () => {
   it("preserves UNC paths in command arguments", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-schtasks-test-"));
     try {
-      const scriptPath = path.join(tmpDir, ".openclaw", "gateway.cmd");
+      const scriptPath = path.join(tmpDir, ".hephie", "gateway.cmd");
       await fs.mkdir(path.dirname(scriptPath), { recursive: true });
       await fs.writeFile(
         scriptPath,

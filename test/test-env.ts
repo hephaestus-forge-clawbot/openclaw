@@ -54,8 +54,8 @@ function loadProfileEnv(): void {
 export function installTestEnv(): { cleanup: () => void; tempHome: string } {
   const live =
     process.env.LIVE === "1" ||
-    process.env.OPENCLAW_LIVE_TEST === "1" ||
-    process.env.OPENCLAW_LIVE_GATEWAY === "1";
+    process.env.HEPHIE_LIVE_TEST === "1" ||
+    process.env.HEPHIE_LIVE_GATEWAY === "1";
 
   // Live tests must use the real user environment (keys, profiles, config).
   // The default test env isolates HOME to avoid touching real state.
@@ -65,6 +65,8 @@ export function installTestEnv(): { cleanup: () => void; tempHome: string } {
   }
 
   const restore: RestoreEntry[] = [
+    { key: "HEPHIE_STATE_DIR", value: process.env.HEPHIE_STATE_DIR },
+    { key: "HEPHIE_CONFIG_PATH", value: process.env.HEPHIE_CONFIG_PATH },
     { key: "OPENCLAW_TEST_FAST", value: process.env.OPENCLAW_TEST_FAST },
     { key: "HOME", value: process.env.HOME },
     { key: "USERPROFILE", value: process.env.USERPROFILE },
@@ -91,7 +93,7 @@ export function installTestEnv(): { cleanup: () => void; tempHome: string } {
     { key: "NODE_OPTIONS", value: process.env.NODE_OPTIONS },
   ];
 
-  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-test-home-"));
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "hephie-test-home-"));
 
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -99,8 +101,10 @@ export function installTestEnv(): { cleanup: () => void; tempHome: string } {
   process.env.OPENCLAW_TEST_FAST = "1";
 
   // Ensure test runs never touch the developer's real config/state, even if they have overrides set.
+  delete process.env.HEPHIE_CONFIG_PATH;
   delete process.env.OPENCLAW_CONFIG_PATH;
   // Prefer deriving state dir from HOME so nested tests that change HOME also isolate correctly.
+  delete process.env.HEPHIE_STATE_DIR;
   delete process.env.OPENCLAW_STATE_DIR;
   // Prefer test-controlled ports over developer overrides (avoid port collisions across tests/workers).
   delete process.env.OPENCLAW_GATEWAY_PORT;
@@ -122,7 +126,7 @@ export function installTestEnv(): { cleanup: () => void; tempHome: string } {
 
   // Windows: prefer the default state dir so auth/profile tests match real paths.
   if (process.platform === "win32") {
-    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
+    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".hephie");
   }
 
   process.env.XDG_CONFIG_HOME = path.join(tempHome, ".config");

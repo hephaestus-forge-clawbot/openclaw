@@ -51,7 +51,7 @@ describe("config identity defaults", () => {
   });
 
   const writeAndLoadConfig = async (home: string, config: Record<string, unknown>) => {
-    const configDir = path.join(home, ".openclaw");
+    const configDir = path.join(home, ".hephie");
     await fs.mkdir(configDir, { recursive: true });
     await fs.writeFile(
       path.join(configDir, "openclaw.json"),
@@ -63,12 +63,12 @@ describe("config identity defaults", () => {
 
   const withTempHome = async <T>(fn: (home: string) => Promise<T>): Promise<T> => {
     const home = path.join(fixtureRoot, `home-${fixtureCount++}`);
-    await fs.mkdir(path.join(home, ".openclaw"), { recursive: true });
+    await fs.mkdir(path.join(home, ".hephie"), { recursive: true });
 
     const snapshot = snapshotHomeEnv();
     process.env.HOME = home;
     process.env.USERPROFILE = home;
-    process.env.OPENCLAW_STATE_DIR = path.join(home, ".openclaw");
+    process.env.OPENCLAW_STATE_DIR = path.join(home, ".hephie");
 
     if (process.platform === "win32") {
       const match = home.match(/^([A-Za-z]:)(.*)$/);
@@ -137,7 +137,7 @@ describe("config identity defaults", () => {
                 theme: "space lobster",
                 emoji: "🦞",
               },
-              groupChat: { mentionPatterns: ["@openclaw"] },
+              groupChat: { mentionPatterns: [".hephie"] },
             },
           ],
         },
@@ -147,7 +147,7 @@ describe("config identity defaults", () => {
       });
 
       expect(cfg.messages?.responsePrefix).toBe("✅");
-      expect(cfg.agents?.list?.[0]?.groupChat?.mentionPatterns).toEqual(["@openclaw"]);
+      expect(cfg.agents?.list?.[0]?.groupChat?.mentionPatterns).toEqual([".hephie"]);
     });
   });
 
@@ -155,7 +155,7 @@ describe("config identity defaults", () => {
     await withTempHome(async (home) => {
       const cfg = await writeAndLoadConfig(home, {
         messages: {
-          messagePrefix: "[openclaw]",
+          messagePrefix: "[hephie]",
           responsePrefix: "🦞",
         },
         channels: {
