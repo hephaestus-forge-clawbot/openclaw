@@ -38,7 +38,7 @@ export function configureProgramHelp(program: Command, ctx: ProgramContext) {
     )
     .option(
       "--profile <name>",
-      "Use a named profile (isolates OPENCLAW_STATE_DIR/OPENCLAW_CONFIG_PATH under ~/.openclaw-<name>)",
+      "Use a named profile (isolates HEPHIE_STATE_DIR/HEPHIE_CONFIG_PATH under ~/.hephie-<name>)",
     );
 
   program.option("--no-color", "Disable ANSI colors", false);
