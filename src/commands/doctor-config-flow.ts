@@ -242,9 +242,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
         cfg = migrated;
       }
     } else {
-      fixHints.push(
-        `Run "${formatCliCommand("openclaw doctor --fix")}" to apply legacy migrations.`,
-      );
+      fixHints.push(`Run "${formatCliCommand("hephie doctor --fix")}" to apply legacy migrations.`);
     }
   }
 
@@ -256,7 +254,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     if (shouldRepair) {
       cfg = normalized.config;
     } else {
-      fixHints.push(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`);
+      fixHints.push(`Run "${formatCliCommand("hephie doctor --fix")}" to apply these changes.`);
     }
   }
 
@@ -268,7 +266,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     if (shouldRepair) {
       cfg = autoEnable.config;
     } else {
-      fixHints.push(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`);
+      fixHints.push(`Run "${formatCliCommand("hephie doctor --fix")}" to apply these changes.`);
     }
   }
 

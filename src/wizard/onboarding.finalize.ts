@@ -309,10 +309,10 @@ export async function finalizeOnboardingWizard(
       [
         "Gateway token: shared auth for the Gateway + Control UI.",
         "Stored in: ~/.openclaw/openclaw.json (gateway.auth.token) or OPENCLAW_GATEWAY_TOKEN.",
-        `View token: ${formatCliCommand("openclaw config get gateway.auth.token")}`,
-        `Generate token: ${formatCliCommand("openclaw doctor --generate-gateway-token")}`,
+        `View token: ${formatCliCommand("hephie config get gateway.auth.token")}`,
+        `Generate token: ${formatCliCommand("hephie doctor --generate-gateway-token")}`,
         "Web UI stores a copy in this browser's localStorage (openclaw.control.settings.v1).",
-        `Open the dashboard anytime: ${formatCliCommand("openclaw dashboard --no-open")}`,
+        `Open the dashboard anytime: ${formatCliCommand("hephie dashboard --no-open")}`,
         "If prompted: paste the token into Control UI settings (or use the tokenized dashboard URL).",
       ].join("\n"),
       "Token",
@@ -371,7 +371,7 @@ export async function finalizeOnboardingWizard(
       );
     } else {
       await prompter.note(
-        `When you're ready: ${formatCliCommand("openclaw dashboard --no-open")}`,
+        `When you're ready: ${formatCliCommand("hephie dashboard --no-open")}`,
         "Later",
       );
     }
@@ -451,7 +451,7 @@ export async function finalizeOnboardingWizard(
           "OpenClaw uses Brave Search for the `web_search` tool. Without a Brave Search API key, web search won’t work.",
           "",
           "Set it up interactively:",
-          `- Run: ${formatCliCommand("openclaw configure --section web")}`,
+          `- Run: ${formatCliCommand("hephie configure --section web")}`,
           "- Enable web_search and paste your Brave Search API key",
           "",
           "Alternative: set BRAVE_API_KEY in the Gateway environment (no config changes).",

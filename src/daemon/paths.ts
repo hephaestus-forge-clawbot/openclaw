@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { resolveGatewayProfileSuffix } from "./constants.js";
 
@@ -31,12 +32,22 @@ export function resolveUserPathWithHome(input: string, home?: string): string {
 }
 
 export function resolveGatewayStateDir(env: Record<string, string | undefined>): string {
-  const override = env.OPENCLAW_STATE_DIR?.trim();
+  const override = env.HEPHIE_STATE_DIR?.trim() || env.OPENCLAW_STATE_DIR?.trim();
   if (override) {
     const home = override.startsWith("~") ? resolveHomeDir(env) : undefined;
     return resolveUserPathWithHome(override, home);
   }
   const home = resolveHomeDir(env);
-  const suffix = resolveGatewayProfileSuffix(env.OPENCLAW_PROFILE);
-  return path.join(home, `.openclaw${suffix}`);
+  const profile = env.HEPHIE_PROFILE || env.OPENCLAW_PROFILE;
+  const suffix = resolveGatewayProfileSuffix(profile);
+  // Prefer new .hephie dir, fall back to .openclaw if it exists
+  const newDir = path.join(home, `.hephie${suffix}`);
+  const legacyDir = path.join(home, `.openclaw${suffix}`);
+  if (fs.existsSync(newDir)) {
+    return newDir;
+  }
+  if (fs.existsSync(legacyDir)) {
+    return legacyDir;
+  }
+  return newDir;
 }

@@ -459,8 +459,8 @@ export async function statusCommand(
       runtime.log(theme.muted(`… +${sorted.length - shown.length} more`));
     }
   }
-  runtime.log(theme.muted(`Full report: ${formatCliCommand("openclaw security audit")}`));
-  runtime.log(theme.muted(`Deep probe: ${formatCliCommand("openclaw security audit --deep")}`));
+  runtime.log(theme.muted(`Full report: ${formatCliCommand("hephie security audit")}`));
+  runtime.log(theme.muted(`Deep probe: ${formatCliCommand("hephie security audit --deep")}`));
 
   runtime.log("");
   runtime.log(theme.heading("Channels"));
@@ -633,11 +633,11 @@ export async function statusCommand(
     runtime.log("");
   }
   runtime.log("Next steps:");
-  runtime.log(`  Need to share?      ${formatCliCommand("openclaw status --all")}`);
-  runtime.log(`  Need to debug live? ${formatCliCommand("openclaw logs --follow")}`);
+  runtime.log(`  Need to share?      ${formatCliCommand("hephie status --all")}`);
+  runtime.log(`  Need to debug live? ${formatCliCommand("hephie logs --follow")}`);
   if (gatewayReachable) {
-    runtime.log(`  Need to test channels? ${formatCliCommand("openclaw status --deep")}`);
+    runtime.log(`  Need to test channels? ${formatCliCommand("hephie status --deep")}`);
   } else {
-    runtime.log(`  Fix reachability first: ${formatCliCommand("openclaw gateway probe")}`);
+    runtime.log(`  Fix reachability first: ${formatCliCommand("hephie gateway probe")}`);
   }
 }

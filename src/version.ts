@@ -1,7 +1,9 @@
 import { createRequire } from "node:module";
 
 declare const __OPENCLAW_VERSION__: string | undefined;
-const CORE_PACKAGE_NAME = "openclaw";
+declare const __HEPHIE_VERSION__: string | undefined;
+const CORE_PACKAGE_NAME = "hephie";
+const LEGACY_CORE_PACKAGE_NAME = "openclaw";
 
 const PACKAGE_JSON_CANDIDATES = [
   "../package.json",
@@ -30,7 +32,11 @@ function readVersionFromJsonCandidates(
         if (!version) {
           continue;
         }
-        if (opts.requirePackageName && parsed.name !== CORE_PACKAGE_NAME) {
+        if (
+          opts.requirePackageName &&
+          parsed.name !== CORE_PACKAGE_NAME &&
+          parsed.name !== LEGACY_CORE_PACKAGE_NAME
+        ) {
           continue;
         }
         return version;
@@ -61,11 +67,13 @@ export function resolveVersionFromModuleUrl(moduleUrl: string): string | null {
   );
 }
 
-// Single source of truth for the current OpenClaw version.
+// Single source of truth for the current Hephie version.
 // - Embedded/bundled builds: injected define or env var.
 // - Dev/npm builds: package.json.
 export const VERSION =
+  (typeof __HEPHIE_VERSION__ === "string" && __HEPHIE_VERSION__) ||
   (typeof __OPENCLAW_VERSION__ === "string" && __OPENCLAW_VERSION__) ||
+  process.env.HEPHIE_BUNDLED_VERSION ||
   process.env.OPENCLAW_BUNDLED_VERSION ||
   resolveVersionFromModuleUrl(import.meta.url) ||
   "0.0.0";

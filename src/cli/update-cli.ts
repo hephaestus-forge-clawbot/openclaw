@@ -27,15 +27,15 @@ export function registerUpdateCli(program: Command) {
     .option("--yes", "Skip confirmation prompts (non-interactive)", false)
     .addHelpText("after", () => {
       const examples = [
-        ["openclaw update", "Update a source checkout (git)"],
-        ["openclaw update --channel beta", "Switch to beta channel (git + npm)"],
-        ["openclaw update --channel dev", "Switch to dev channel (git + npm)"],
-        ["openclaw update --tag beta", "One-off update to a dist-tag or version"],
-        ["openclaw update --no-restart", "Update without restarting the service"],
-        ["openclaw update --json", "Output result as JSON"],
-        ["openclaw update --yes", "Non-interactive (accept downgrade prompts)"],
-        ["openclaw update wizard", "Interactive update wizard"],
-        ["openclaw --update", "Shorthand for openclaw update"],
+        ["hephie update", "Update a source checkout (git)"],
+        ["hephie update --channel beta", "Switch to beta channel (git + npm)"],
+        ["hephie update --channel dev", "Switch to dev channel (git + npm)"],
+        ["hephie update --tag beta", "One-off update to a dist-tag or version"],
+        ["hephie update --no-restart", "Update without restarting the service"],
+        ["hephie update --json", "Output result as JSON"],
+        ["hephie update --yes", "Non-interactive (accept downgrade prompts)"],
+        ["hephie update wizard", "Interactive update wizard"],
+        ["hephie --update", "Shorthand for openclaw update"],
       ] as const;
       const fmtExamples = examples
         .map(([cmd, desc]) => `  ${theme.command(cmd)} ${theme.muted(`# ${desc}`)}`)
@@ -109,9 +109,9 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/up
       "after",
       () =>
         `\n${theme.heading("Examples:")}\n${formatHelpExamples([
-          ["openclaw update status", "Show channel + version status."],
-          ["openclaw update status --json", "JSON output."],
-          ["openclaw update status --timeout 10", "Custom timeout."],
+          ["hephie update status", "Show channel + version status."],
+          ["hephie update status --json", "JSON output."],
+          ["hephie update status --timeout 10", "Custom timeout."],
         ])}\n\n${theme.heading("Notes:")}\n${theme.muted(
           "- Shows current update channel (stable/beta/dev) and source",
         )}\n${theme.muted("- Includes git tag/branch/SHA for source checkouts")}\n\n${theme.muted(

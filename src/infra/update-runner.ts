@@ -80,7 +80,7 @@ const DEFAULT_TIMEOUT_MS = 20 * 60_000;
 const MAX_LOG_CHARS = 8000;
 const PREFLIGHT_MAX_COMMITS = 10;
 const START_DIRS = ["cwd", "argv1", "process"];
-const DEFAULT_PACKAGE_NAME = "openclaw";
+const DEFAULT_PACKAGE_NAME = "hephie";
 const CORE_PACKAGE_NAMES = new Set([DEFAULT_PACKAGE_NAME]);
 
 function normalizeDir(value?: string | null) {
@@ -355,8 +355,8 @@ function normalizeTag(tag?: string) {
   if (!trimmed) {
     return "latest";
   }
-  if (trimmed.startsWith("openclaw@")) {
-    return trimmed.slice("openclaw@".length);
+  if (trimmed.startsWith("hephie@")) {
+    return trimmed.slice("hephie@".length);
   }
   if (trimmed.startsWith(`${DEFAULT_PACKAGE_NAME}@`)) {
     return trimmed.slice(`${DEFAULT_PACKAGE_NAME}@`.length);
@@ -568,7 +568,7 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
       }
 
       const manager = await detectPackageManager(gitRoot);
-      const preflightRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-preflight-"));
+      const preflightRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hephie-update-preflight-"));
       const worktreeDir = path.join(preflightRoot, "worktree");
       const worktreeStep = await runStep(
         step(
@@ -750,14 +750,14 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
     );
     steps.push(uiBuildStep);
 
-    const doctorEntry = path.join(gitRoot, "openclaw.mjs");
+    const doctorEntry = path.join(gitRoot, "hephie.mjs");
     const doctorEntryExists = await fs
       .stat(doctorEntry)
       .then(() => true)
       .catch(() => false);
     if (!doctorEntryExists) {
       steps.push({
-        name: "openclaw doctor entry",
+        name: "hephie doctor entry",
         command: `verify ${doctorEntry}`,
         cwd: gitRoot,
         durationMs: 0,
@@ -777,7 +777,7 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
 
     const doctorArgv = [process.execPath, doctorEntry, "doctor", "--non-interactive"];
     const doctorStep = await runStep(
-      step("openclaw doctor", doctorArgv, gitRoot, { OPENCLAW_UPDATE_IN_PROGRESS: "1" }),
+      step("hephie doctor", doctorArgv, gitRoot, { HEPHIE_UPDATE_IN_PROGRESS: "1" }),
     );
     steps.push(doctorStep);
 

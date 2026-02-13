@@ -179,7 +179,7 @@ function emitGatewayError(
 ) {
   const details = buildGatewayConnectionDetails({ url: opts.url });
   const message = "Gateway not reachable. Is it running and accessible?";
-  const hint = `Hint: run \`${formatCliCommand("openclaw doctor")}\`.`;
+  const hint = `Hint: run \`${formatCliCommand("hephie doctor")}\`.`;
   const errorText = err instanceof Error ? err.message : String(err);
 
   if (mode === "json") {

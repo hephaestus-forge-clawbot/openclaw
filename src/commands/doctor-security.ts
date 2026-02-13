@@ -10,7 +10,7 @@ import { note } from "../terminal/note.js";
 
 export async function noteSecurityWarnings(cfg: OpenClawConfig) {
   const warnings: string[] = [];
-  const auditHint = `- Run: ${formatCliCommand("openclaw security audit --deep")}`;
+  const auditHint = `- Run: ${formatCliCommand("hephie security audit --deep")}`;
 
   // ===========================================
   // GATEWAY NETWORK EXPOSURE CHECK
@@ -48,11 +48,11 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
       const authFixLines =
         resolvedAuth.mode === "password"
           ? [
-              `  Fix: ${formatCliCommand("openclaw configure")} to set a password`,
-              `  Or switch to token: ${formatCliCommand("openclaw config set gateway.auth.mode token")}`,
+              `  Fix: ${formatCliCommand("hephie configure")} to set a password`,
+              `  Or switch to token: ${formatCliCommand("hephie config set gateway.auth.mode token")}`,
             ]
           : [
-              `  Fix: ${formatCliCommand("openclaw doctor --fix")} to generate a token`,
+              `  Fix: ${formatCliCommand("hephie doctor --fix")} to generate a token`,
               `  Or set token directly: ${formatCliCommand(
                 "openclaw config set gateway.auth.mode token",
               )}`,
@@ -60,7 +60,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
       warnings.push(
         `- CRITICAL: Gateway bound to ${bindDescriptor} without authentication.`,
         `  Anyone on your network (or internet if port-forwarded) can fully control your agent.`,
-        `  Fix: ${formatCliCommand("openclaw config set gateway.bind loopback")}`,
+        `  Fix: ${formatCliCommand("hephie config set gateway.bind loopback")}`,
         ...authFixLines,
       );
     } else {

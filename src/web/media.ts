@@ -35,6 +35,8 @@ function getDefaultLocalRoots(): string[] {
   const home = os.homedir();
   return [
     os.tmpdir(),
+    path.join(home, ".hephie", "media"),
+    path.join(home, ".hephie", "agents"),
     path.join(home, ".openclaw", "media"),
     path.join(home, ".openclaw", "agents"),
   ];

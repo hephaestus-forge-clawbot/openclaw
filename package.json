@@ -1,16 +1,18 @@
 {
-  "name": "openclaw",
+  "name": "hephie",
   "version": "2026.2.13",
   "description": "Multi-channel AI gateway with extensible messaging integrations",
   "keywords": [],
   "license": "MIT",
   "author": "",
   "bin": {
+    "hephie": "hephie.mjs",
     "openclaw": "openclaw.mjs"
   },
   "files": [
     "CHANGELOG.md",
     "LICENSE",
+    "hephie.mjs",
     "openclaw.mjs",
     "README-header.png",
     "README.md",
@@ -28,7 +30,7 @@
       "types": "./dist/plugin-sdk/index.d.ts",
       "default": "./dist/plugin-sdk/index.js"
     },
-    "./cli-entry": "./openclaw.mjs"
+    "./cli-entry": "./hephie.mjs"
   },
   "scripts": {
     "android:assemble": "cd apps/android && ./gradlew :app:assembleDebug",
@@ -52,8 +54,8 @@
     "format:docs": "git ls-files 'docs/**/*.md' 'docs/**/*.mdx' 'README.md' | xargs oxfmt --write",
     "format:docs:check": "git ls-files 'docs/**/*.md' 'docs/**/*.mdx' 'README.md' | xargs oxfmt --check",
     "format:swift": "swiftformat --lint --config .swiftformat apps/macos/Sources apps/ios/Sources apps/shared/OpenClawKit/Sources",
-    "gateway:dev": "OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway",
-    "gateway:dev:reset": "OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway --reset",
+    "gateway:dev": "HEPHIE_SKIP_CHANNELS=1 OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway",
+    "gateway:dev:reset": "HEPHIE_SKIP_CHANNELS=1 OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway --reset",
     "gateway:watch": "node scripts/watch-node.mjs gateway --force",
     "ios:build": "bash -lc 'cd apps/ios && xcodegen generate && xcodebuild -project OpenClaw.xcodeproj -scheme OpenClaw -destination \"${IOS_DEST:-platform=iOS Simulator,name=iPhone 17}\" -configuration Debug build'",
     "ios:gen": "cd apps/ios && xcodegen generate",
@@ -103,7 +105,7 @@
     "test:watch": "vitest",
     "tsgo:test": "tsgo -p tsconfig.test.json",
     "tui": "node scripts/run-node.mjs tui",
-    "tui:dev": "OPENCLAW_PROFILE=dev CLAWDBOT_PROFILE=dev node scripts/run-node.mjs --dev tui",
+    "tui:dev": "HEPHIE_PROFILE=dev OPENCLAW_PROFILE=dev CLAWDBOT_PROFILE=dev node scripts/run-node.mjs --dev tui",
     "ui:build": "node scripts/ui.js build",
     "ui:dev": "node scripts/ui.js dev",
     "ui:install": "node scripts/ui.js install"

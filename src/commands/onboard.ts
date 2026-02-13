@@ -45,7 +45,7 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
       [
         "Non-interactive onboarding requires explicit risk acknowledgement.",
         "Read: https://docs.openclaw.ai/security",
-        `Re-run with: ${formatCliCommand("openclaw onboard --non-interactive --accept-risk ...")}`,
+        `Re-run with: ${formatCliCommand("hephie onboard --non-interactive --accept-risk ...")}`,
       ].join("\n"),
     );
     runtime.exit(1);

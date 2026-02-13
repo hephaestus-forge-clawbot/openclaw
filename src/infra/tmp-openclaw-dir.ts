@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export const POSIX_OPENCLAW_TMP_DIR = "/tmp/openclaw";
+export const POSIX_OPENCLAW_TMP_DIR = "/tmp/hephie";
 
 type ResolvePreferredOpenClawTmpDirOptions = {
   accessSync?: (path: string, mode?: number) => void;
@@ -31,13 +31,13 @@ export function resolvePreferredOpenClawTmpDir(
   try {
     const preferred = statSync(POSIX_OPENCLAW_TMP_DIR);
     if (!preferred.isDirectory()) {
-      return path.join(tmpdir(), "openclaw");
+      return path.join(tmpdir(), "hephie");
     }
     accessSync(POSIX_OPENCLAW_TMP_DIR, fs.constants.W_OK | fs.constants.X_OK);
     return POSIX_OPENCLAW_TMP_DIR;
   } catch (err) {
     if (!isNodeErrorWithCode(err, "ENOENT")) {
-      return path.join(tmpdir(), "openclaw");
+      return path.join(tmpdir(), "hephie");
     }
   }
 
@@ -45,6 +45,6 @@ export function resolvePreferredOpenClawTmpDir(
     accessSync("/tmp", fs.constants.W_OK | fs.constants.X_OK);
     return POSIX_OPENCLAW_TMP_DIR;
   } catch {
-    return path.join(tmpdir(), "openclaw");
+    return path.join(tmpdir(), "hephie");
   }
 }
