@@ -172,3 +172,35 @@ export interface MemoryStoreConfig {
   /** Optional path to a custom sqlite-vec extension binary. */
   sqliteVecExtensionPath?: string;
 }
+
+/** Tag category for structured tagging. */
+export type TagCategory = "concepts" | "specialized" | "people" | "places" | "projects";
+
+/** A tag embedding entry for semantic tag similarity search. */
+export interface TagEmbedding {
+  /** The tag text (e.g., "machine learning"). */
+  tag: string;
+
+  /** Which tag dimension this belongs to. */
+  category: TagCategory;
+
+  /** Vector embedding (stored as BLOB in SQLite). */
+  embedding: Float32Array;
+
+  /** Unix timestamp (ms) when created. */
+  createdAt: number;
+
+  /** Unix timestamp (ms) when last updated. */
+  updatedAt: number;
+}
+
+/** Input for creating/updating a tag embedding. */
+export type TagEmbeddingInput = Omit<TagEmbedding, "createdAt" | "updatedAt"> &
+  Partial<Pick<TagEmbedding, "createdAt" | "updatedAt">>;
+
+/** Result from tag similarity search. */
+export interface TagSimilarityResult {
+  tag: string;
+  category: TagCategory;
+  similarity: number;
+}

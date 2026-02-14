@@ -21,6 +21,10 @@ import type {
   PaginationOpts,
   SearchOpts,
   SearchResult,
+  TagCategory,
+  TagEmbedding,
+  TagEmbeddingInput,
+  TagSimilarityResult,
 } from "./types.js";
 // Re-use the project's sqlite-vec loader.
 import { loadSqliteVecExtension } from "../sqlite-vec.js";
@@ -813,6 +817,151 @@ export class MemoryStore {
     return this.ftsAvailable;
   }
 
+  // ── Tag Embedding Operations ─────────────────────────────────────────
+
+  /**
+   * Store or update a tag embedding for semantic similarity search.
+   */
+  upsertTagEmbedding(input: TagEmbeddingInput): void {
+    this.ensureOpen();
+    const now = Date.now();
+    const created = input.createdAt ?? now;
+    const updated = input.updatedAt ?? now;
+
+    // Serialize embedding to BLOB
+    const blob = Buffer.from(input.embedding.buffer);
+
+    this.db
+      .prepare(
+        `INSERT INTO tag_embeddings (tag, category, embedding, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(tag, category) DO UPDATE SET
+           embedding = excluded.embedding,
+           updated_at = excluded.updated_at`,
+      )
+      .run(input.tag, input.category, blob, created, updated);
+  }
+
+  /**
+   * Retrieve a specific tag embedding.
+   */
+  getTagEmbedding(tag: string, category: TagCategory): TagEmbedding | null {
+    this.ensureOpen();
+    const row = this.db
+      .prepare(
+        `SELECT tag, category, embedding, created_at, updated_at
+         FROM tag_embeddings
+         WHERE tag = ? AND category = ?`,
+      )
+      .get(tag, category) as
+      | {
+          tag: string;
+          category: string;
+          embedding: Buffer;
+          created_at: number;
+          updated_at: number;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      tag: row.tag,
+      category: row.category as TagCategory,
+      embedding: new Float32Array(row.embedding.buffer),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /**
+   * Find semantically similar tags using cosine similarity.
+   *
+   * @param queryEmbedding - The query vector (e.g., embedding of "ML")
+   * @param category - Optional category filter (e.g., only search "concepts")
+   * @param minSimilarity - Minimum cosine similarity threshold (default 0.7)
+   * @param limit - Maximum results to return (default 10)
+   */
+  findSimilarTags(
+    queryEmbedding: Float32Array,
+    category?: TagCategory,
+    minSimilarity = 0.7,
+    limit = 10,
+  ): TagSimilarityResult[] {
+    this.ensureOpen();
+
+    let query = `SELECT tag, category, embedding FROM tag_embeddings`;
+    const params: (string | number)[] = [];
+
+    if (category) {
+      query += ` WHERE category = ?`;
+      params.push(category);
+    }
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      tag: string;
+      category: string;
+      embedding: Buffer;
+    }>;
+
+    // Compute cosine similarity for each tag
+    const results: TagSimilarityResult[] = [];
+    for (const row of rows) {
+      const tagEmbedding = new Float32Array(row.embedding.buffer);
+      const similarity = cosineSimilarity(queryEmbedding, tagEmbedding);
+
+      if (similarity >= minSimilarity) {
+        results.push({
+          tag: row.tag,
+          category: row.category as TagCategory,
+          similarity,
+        });
+      }
+    }
+
+    // Sort by similarity descending
+    results.sort((a, b) => b.similarity - a.similarity);
+
+    return results.slice(0, limit);
+  }
+
+  /**
+   * Get all unique tags for a specific category.
+   */
+  getAllTags(category?: TagCategory): Array<{ tag: string; category: TagCategory }> {
+    this.ensureOpen();
+
+    let query = `SELECT DISTINCT tag, category FROM tag_embeddings`;
+    const params: string[] = [];
+
+    if (category) {
+      query += ` WHERE category = ?`;
+      params.push(category);
+    }
+
+    query += ` ORDER BY tag ASC`;
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      tag: string;
+      category: string;
+    }>;
+
+    return rows.map((r) => ({
+      tag: r.tag,
+      category: r.category as TagCategory,
+    }));
+  }
+
+  /**
+   * Delete a tag embedding.
+   */
+  deleteTagEmbedding(tag: string, category: TagCategory): void {
+    this.ensureOpen();
+    this.db.prepare(`DELETE FROM tag_embeddings WHERE tag = ? AND category = ?`).run(tag, category);
+  }
+
   /**
    * Close the database connection.
    */
@@ -905,4 +1054,27 @@ function bm25RankToScore(rank: number): number {
   // FTS5 rank is negative (more negative = more relevant)
   const normalized = Number.isFinite(rank) ? Math.abs(rank) : 0;
   return normalized / (1 + normalized);
+}
+
+/**
+ * Compute cosine similarity between two vectors.
+ * Returns a value between -1 and 1 (typically 0-1 for normalized embeddings).
+ */
+function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  if (a.length !== b.length) {
+    throw new Error(`Vector dimension mismatch: ${a.length} vs ${b.length}`);
+  }
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+  return magnitude === 0 ? 0 : dotProduct / magnitude;
 }

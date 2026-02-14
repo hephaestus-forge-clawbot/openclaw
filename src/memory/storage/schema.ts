@@ -7,7 +7,7 @@
 import type { DatabaseSync } from "node:sqlite";
 
 /** Current schema version. Bump when adding migrations. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Name of the vector virtual table. */
 export const VEC_TABLE = "memory_embeddings";
@@ -102,6 +102,26 @@ export function createFtsTable(db: DatabaseSync): { ok: boolean; error?: string 
 }
 
 /**
+ * Create the `tag_embeddings` table for semantic tag similarity search.
+ * Stores embeddings for unique tag values across all memory chunks.
+ */
+export function createTagEmbeddingsTable(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tag_embeddings (
+      tag TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('concepts', 'specialized', 'people', 'places', 'projects')),
+      embedding BLOB NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (tag, category)
+    );
+  `);
+
+  // Index for category-scoped lookups
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_te_category ON tag_embeddings(category);`);
+}
+
+/**
  * Create the schema version tracking table and return current version.
  */
 export function getSchemaVersion(db: DatabaseSync): number {
@@ -160,6 +180,11 @@ export function runMigrations(db: DatabaseSync): void {
     db.exec(
       `CREATE INDEX IF NOT EXISTS idx_mc_relevance_horizon ON memory_chunks(relevance_horizon);`,
     );
+  }
+
+  // Migration 2 → 3: add tag_embeddings table for semantic tag search
+  if (current < 3) {
+    createTagEmbeddingsTable(db);
   }
 
   setSchemaVersion(db, SCHEMA_VERSION);
