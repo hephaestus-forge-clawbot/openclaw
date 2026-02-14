@@ -2,6 +2,7 @@ import type { Skill } from "@mariozechner/pi-coding-agent";
 import crypto from "node:crypto";
 import type { ChatType } from "../../channels/chat-type.js";
 import type { ChannelId } from "../../channels/plugins/types.js";
+import type { ChannelHistoryEntry } from "../../cross-channel/types.js";
 import type { DeliveryContext } from "../../utils/delivery-context.js";
 import type { TtsAutoMode } from "../types.tts.js";
 
@@ -99,6 +100,12 @@ export type SessionEntry = {
   lastThreadId?: string | number;
   skillsSnapshot?: SessionSkillSnapshot;
   systemPromptReport?: SessionSystemPromptReport;
+
+  // ── Cross-Channel Intelligence (Hephie Phase 3.1) ────────────────────
+  /** History of channels this session has been active on. */
+  channelHistory?: ChannelHistoryEntry[];
+  /** Canonical person name for cross-channel identity mapping. */
+  crossChannelPerson?: string;
 };
 
 export function mergeSessionEntry(
