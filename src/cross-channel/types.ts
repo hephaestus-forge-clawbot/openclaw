@@ -7,8 +7,8 @@
 
 // ── Channel History ─────────────────────────────────────────────────────
 
-/** Supported channel types for cross-channel tracking. */
-export type ChannelType =
+/** Well-known channel types for cross-channel tracking. */
+export type KnownChannelType =
   | "telegram"
   | "slack"
   | "discord"
@@ -16,8 +16,10 @@ export type ChannelType =
   | "imessage"
   | "signal"
   | "webchat"
-  | "line"
-  | string; // Allow extension
+  | "line";
+
+/** Channel type — well-known or custom string. */
+export type ChannelType = KnownChannelType | (string & {});
 
 /** A record of activity on a single channel within a session. */
 export interface ChannelHistoryEntry {
