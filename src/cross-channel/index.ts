@@ -1,11 +1,12 @@
 /**
- * Cross-Channel Intelligence (Hephie Phase 3.1 + 3.2 + 3.3)
+ * Cross-Channel Intelligence (Hephie Phase 3.1 + 3.2 + 3.3 + 3.4)
  *
  * One agent, multiple surfaces, unified context.
  *
  * Phase 3.1: Unified Session Context
  * Phase 3.2: Cross-Channel Messaging
  * Phase 3.3: Unified Threading
+ * Phase 3.4: Smart Channel Selection
  */
 
 // ── Phase 3.1: Types & Core ──────────────────────────────────────────────
@@ -141,3 +142,43 @@ export {
 } from "./thread-context.js";
 
 export { ThreadManager, type MaintenanceResult, type SummaryGenerator } from "./thread-manager.js";
+
+// ── Phase 3.4: Smart Channel Selection ───────────────────────────────────
+
+export type {
+  KnownMessageType,
+  MessageType,
+  UrgencyLevel,
+  UserChannelActivity,
+  StalenessThresholds,
+  AvailabilityStatus,
+  ChannelAvailability,
+  ChannelPreference,
+  UserChannelPreferences,
+  AffinityRule,
+  AffinityConfig,
+  FallbackChain,
+  ChannelSelectionRequest,
+  ChannelRecommendation,
+  ChannelSelectionResult,
+  SmartChannelSelectorConfig,
+} from "./channel-selector-types.js";
+export {
+  DEFAULT_STALENESS_THRESHOLDS,
+  DEFAULT_AFFINITY_RULES,
+  DEFAULT_AFFINITY_CONFIG,
+  DEFAULT_SELECTOR_CONFIG,
+} from "./channel-selector-types.js";
+
+export { UserAvailabilityTracker } from "./user-availability.js";
+
+export {
+  ChannelPreferenceLearner,
+  DEFAULT_LEARNER_CONFIG,
+  type MessageObservation,
+  type PreferenceLearnerConfig,
+} from "./channel-preferences.js";
+
+export { ChannelAffinityMapper } from "./channel-affinity.js";
+
+export { SmartChannelSelector } from "./channel-selector.js";
