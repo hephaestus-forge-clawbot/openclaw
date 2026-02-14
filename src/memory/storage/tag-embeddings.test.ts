@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { TagCategory, TagEmbeddingInput } from "./types.js";
+import type { TagEmbeddingInput } from "./types.js";
 import { MemoryStore } from "./sqlite-store.js";
 
 describe("MemoryStore Tag Embeddings", () => {
