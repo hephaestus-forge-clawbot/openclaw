@@ -10,7 +10,7 @@
  */
 
 import type { MemoryStore } from "./storage/sqlite-store.js";
-import type { MemoryChunk, MemoryTier } from "./storage/types.js";
+import type { MemoryChunk } from "./storage/types.js";
 
 // ── Config ────────────────────────────────────────────────────────────────
 

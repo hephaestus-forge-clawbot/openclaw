@@ -3,7 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ContextInjector, type QuerySignals, type AssembledContext } from "./context-injector.js";
+import { ContextInjector } from "./context-injector.js";
 import { MemoryStore } from "./storage/sqlite-store.js";
 
 /** Helper: create an in-memory store. */
