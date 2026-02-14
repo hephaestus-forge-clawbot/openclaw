@@ -15,13 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EmbeddingProvider } from "./embeddings/types.js";
-import type {
-  MemoryChunk,
-  MemoryChunkInput,
-  MemoryTags,
-  MemoryTier,
-  SearchOpts,
-} from "./storage/types.js";
+import type { MemoryChunk, MemoryChunkInput, MemoryTags, SearchOpts } from "./storage/types.js";
 import { ContextInjector, type QuerySignals, type AssembledContext } from "./context-injector.js";
 import { MemoryMaintenance } from "./maintenance.js";
 import { MemoryMigrator } from "./migration/migrator.js";
@@ -72,7 +66,7 @@ class MockEmbeddingProvider implements EmbeddingProvider {
    */
   private deterministicEmbedding(text: string): number[] {
     const lower = text.toLowerCase();
-    const vec = new Array<number>(this.dimensions).fill(0);
+    const vec = Array.from<number>({ length: this.dimensions }).fill(0);
 
     // Base: hash-seeded pseudo-random components
     const hash = createHash("sha256").update(text).digest();
@@ -142,47 +136,6 @@ class MockEmbeddingProvider implements EmbeddingProvider {
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
 // ═══════════════════════════════════════════════════════════════════════════
-
-/** Create a MemorySystem with mock embeddings and full capabilities. */
-async function createTestSystem(opts?: {
-  enableVector?: boolean;
-  enableFts?: boolean;
-  budgetTokens?: number;
-  embeddingProvider?: EmbeddingProvider;
-}): Promise<{ system: MemorySystem; store: MemoryStore; embeddings: MockEmbeddingProvider }> {
-  const embeddings = new MockEmbeddingProvider();
-  const store = await MemoryStore.open({
-    dbPath: ":memory:",
-    embeddingDimensions: 384,
-    enableVector: opts?.enableVector ?? true,
-    enableFts: opts?.enableFts ?? true,
-  });
-
-  const provider = opts?.embeddingProvider ?? embeddings;
-  const injector = new ContextInjector(store, provider, {
-    totalTokens: opts?.budgetTokens ?? 4000,
-  });
-  const maintenance = new MemoryMaintenance(store);
-
-  // We need to construct a MemorySystem — use the static create with a trick:
-  // Since MemorySystem.create wraps its own MemoryStore.open, we'll just use
-  // the system directly with our pre-built store.
-  // Actually, let's just use MemorySystem.create with the mock pattern.
-  const system = await MemorySystem.create({
-    store: {
-      dbPath: ":memory:",
-      embeddingDimensions: 384,
-      enableVector: opts?.enableVector ?? true,
-      enableFts: opts?.enableFts ?? true,
-    },
-    // No embedding config — we'll inject our own
-  });
-
-  // Access internals to inject mock embeddings
-  // The system will have null embeddings; for tests needing embeddings,
-  // we'll use the store directly with the mock provider.
-  return { system, store, embeddings };
-}
 
 /**
  * Create a fully-wired test rig with mock embeddings plugged into
