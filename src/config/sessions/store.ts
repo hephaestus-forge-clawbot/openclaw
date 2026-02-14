@@ -114,7 +114,12 @@ function normalizeSessionStore(store: Record<string, SessionEntry>): void {
   }
 }
 
-export function clearSessionStoreCacheForTest(): void {
+/**
+ * Reset in-memory session store lock queues.
+ * Called during SIGUSR1 in-process restart to prevent stale queued tasks from
+ * the previous lifecycle from blocking the new lifecycle. (Hephie fix)
+ */
+export function resetSessionStoreLockQueues(): void {
   SESSION_STORE_CACHE.clear();
   for (const queue of LOCK_QUEUES.values()) {
     for (const task of queue.pending) {
@@ -125,6 +130,10 @@ export function clearSessionStoreCacheForTest(): void {
     }
   }
   LOCK_QUEUES.clear();
+}
+
+export function clearSessionStoreCacheForTest(): void {
+  resetSessionStoreLockQueues();
 }
 
 /** Expose lock queue size for tests. */

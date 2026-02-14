@@ -63,8 +63,10 @@ function isAlive(pid: number): boolean {
 /**
  * Synchronously release all held locks.
  * Used during process exit when async operations aren't reliable.
+ * Also called during SIGUSR1 in-process restart to prevent stale lock files
+ * from blocking the new lifecycle. (Hephie fix)
  */
-function releaseAllLocksSync(): void {
+export function releaseAllLocksSync(): void {
   for (const [sessionFile, held] of HELD_LOCKS) {
     try {
       if (typeof held.handle.close === "function") {
@@ -231,6 +233,60 @@ export async function acquireSessionWriteLock(params: {
   const payload = await readLockPayload(lockPath);
   const owner = payload?.pid ? `pid=${payload.pid}` : "unknown";
   throw new Error(`session file locked (timeout ${timeoutMs}ms): ${owner} ${lockPath}`);
+}
+
+/**
+ * Clean up stale `.lock` files in a directory tree.
+ * Called during gateway startup to remove lock files left behind by crashed
+ * processes or unclean SIGUSR1 restarts. (Hephie fix)
+ *
+ * A lock file is considered stale if:
+ * - The owning PID is no longer alive, OR
+ * - The lock file is older than `staleMs` (default 30s)
+ */
+export async function cleanupStaleLockFiles(
+  dir: string,
+  opts?: { staleMs?: number },
+): Promise<number> {
+  const staleMs = opts?.staleMs ?? 30_000;
+  let cleaned = 0;
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        cleaned += await cleanupStaleLockFiles(fullPath, opts);
+        continue;
+      }
+      if (!entry.name.endsWith(".lock")) {
+        continue;
+      }
+      try {
+        const payload = await readLockPayload(fullPath);
+        const ownerAlive = payload?.pid ? isAlive(payload.pid) : false;
+        // If the owner PID is our own process, this lock is from a previous
+        // lifecycle (e.g. pre-SIGUSR1) and should be cleaned up.
+        const isOwnStale = payload?.pid === process.pid;
+        if (!ownerAlive || isOwnStale) {
+          await fs.rm(fullPath, { force: true });
+          cleaned++;
+          continue;
+        }
+        // Check time-based staleness
+        const createdAt = payload?.createdAt ? Date.parse(payload.createdAt) : NaN;
+        const isTimeStale = !Number.isFinite(createdAt) || Date.now() - createdAt > staleMs;
+        if (isTimeStale) {
+          await fs.rm(fullPath, { force: true });
+          cleaned++;
+        }
+      } catch {
+        // Best-effort cleanup; skip files we can't read or delete.
+      }
+    }
+  } catch {
+    // Directory may not exist yet — that's fine.
+  }
+  return cleaned;
 }
 
 export const __testing = {
