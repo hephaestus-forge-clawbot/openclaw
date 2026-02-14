@@ -2,7 +2,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { EmbeddingProvider } from "../embeddings/types.js";
+import type { MemoryStore } from "../storage/sqlite-store.js";
 import { MemoryMigrator } from "./migrator.js";
+
+/** Cast mock to the interface type the migrator expects. */
+function asStore(mock: MockMemoryStore): MemoryStore {
+  return mock as unknown as MemoryStore;
+}
+function asEmbed(mock: MockEmbeddingProvider): EmbeddingProvider {
+  return mock as unknown as EmbeddingProvider;
+}
 
 // ---------------------------------------------------------------------------
 // Test helpers — minimal mocks
@@ -13,8 +23,6 @@ import { MemoryMigrator } from "./migrator.js";
  */
 class MockMemoryStore {
   inserted: Array<{ input: Record<string, unknown>; embedding?: number[] }> = [];
-  private closed = false;
-
   insert(input: Record<string, unknown>, embedding?: number[]): string {
     const id = `mock-${this.inserted.length}`;
     this.inserted.push({ input, embedding });
@@ -34,7 +42,7 @@ class MockMemoryStore {
   }
 
   close() {
-    this.closed = true;
+    /* noop */
   }
 }
 
@@ -46,7 +54,7 @@ class MockEmbeddingProvider {
   readonly dimensions = 4;
   embedCallCount = 0;
 
-  async embed(text: string): Promise<number[]> {
+  async embed(_text: string): Promise<number[]> {
     this.embedCallCount++;
     return [0.1, 0.2, 0.3, 0.4];
   }
@@ -147,7 +155,7 @@ describe("MemoryMigrator", () => {
   describe("migrateMemoryMd", () => {
     it("creates chunks from MEMORY.md", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -161,7 +169,7 @@ describe("MemoryMigrator", () => {
 
     it("generates embeddings for each chunk", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -177,7 +185,7 @@ describe("MemoryMigrator", () => {
 
     it("stores chunks with correct tier", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -191,7 +199,7 @@ describe("MemoryMigrator", () => {
 
     it("stores metadata with contextPath and migration source", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -211,7 +219,7 @@ describe("MemoryMigrator", () => {
   describe("migrateDailyLog", () => {
     it("creates chunks from daily log", async () => {
       const filePath = writeFile("memory/2026-02-13.md", SAMPLE_DAILY_LOG);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -224,7 +232,7 @@ describe("MemoryMigrator", () => {
 
     it("sets tier to short_term", async () => {
       const filePath = writeFile("memory/2026-02-13.md", SAMPLE_DAILY_LOG);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -242,7 +250,7 @@ describe("MemoryMigrator", () => {
   describe("migratePersonFile", () => {
     it("tags all chunks with person name", async () => {
       const filePath = writeFile("memory/people/laura-bernal.md", SAMPLE_PERSON_FILE);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -261,7 +269,7 @@ describe("MemoryMigrator", () => {
   describe("idempotency", () => {
     it("skips already-migrated files on second run", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -279,7 +287,7 @@ describe("MemoryMigrator", () => {
 
     it("re-migrates if file content changes", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -302,14 +310,14 @@ describe("MemoryMigrator", () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
 
       // First migrator instance
-      const migrator1 = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator1 = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
       await migrator1.migrateMemoryMd(filePath);
 
       // Second migrator instance (simulates new process)
-      const migrator2 = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator2 = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -318,7 +326,7 @@ describe("MemoryMigrator", () => {
 
     it("allows reset and re-migration", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -344,7 +352,7 @@ describe("MemoryMigrator", () => {
       writeFile("memory/people/laura-bernal.md", SAMPLE_PERSON_FILE);
 
       const memoryDir = path.join(tmpDir, "memory");
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -369,7 +377,7 @@ describe("MemoryMigrator", () => {
       writeFile("memory/2026-02-13.md", SAMPLE_DAILY_LOG);
 
       const memoryDir = path.join(tmpDir, "memory");
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -387,7 +395,7 @@ describe("MemoryMigrator", () => {
 
   describe("edge cases", () => {
     it("handles missing file gracefully", async () => {
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -401,7 +409,7 @@ describe("MemoryMigrator", () => {
 
     it("handles empty file", async () => {
       const filePath = writeFile("empty.md", "");
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
@@ -414,7 +422,7 @@ describe("MemoryMigrator", () => {
 
     it("works without embedding provider", async () => {
       const filePath = writeFile("MEMORY.md", SAMPLE_MEMORY_MD);
-      const migrator = new MemoryMigrator(store as any, null, {
+      const migrator = new MemoryMigrator(asStore(store), null, {
         manifestPath,
         quiet: true,
       });
@@ -439,11 +447,11 @@ describe("MemoryMigrator", () => {
 `,
       );
 
-      const migrator = new MemoryMigrator(store as any, embeddings as any, {
+      const migrator = new MemoryMigrator(asStore(store), asEmbed(embeddings), {
         manifestPath,
         quiet: true,
       });
-      const result = await migrator.migratePersonFile(filePath, "Paul Lukowicz");
+      await migrator.migratePersonFile(filePath, "Paul Lukowicz");
 
       for (const entry of store.inserted) {
         expect(entry.input.person).toBe("Paul Lukowicz");

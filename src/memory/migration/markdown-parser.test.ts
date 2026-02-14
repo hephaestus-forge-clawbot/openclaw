@@ -370,12 +370,9 @@ describe("parseMemoryMd", () => {
     const chunks = parseMemoryMd(SAMPLE_MEMORY, {
       filePath: "MEMORY.md",
     });
-    const lessonChunks = chunks.filter((c) => c.category === "lesson");
-    // "Lesson:" appears in the 2026-02-01 section
-    // It may or may not be categorized as lesson depending on which text gets the chunk
-    // But at minimum events should be detected
-    const eventChunks = chunks.filter((c) => c.category === "event");
-    // Some chunks should be events (birth, upgrade, etc)
+    // Verify multiple categories are present
+    const categories = new Set(chunks.map((c) => c.category));
+    expect(categories.size).toBeGreaterThan(1);
     expect(chunks.length).toBeGreaterThan(3);
   });
 

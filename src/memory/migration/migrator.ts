@@ -14,12 +14,7 @@ import path from "node:path";
 import type { EmbeddingProvider } from "../embeddings/types.js";
 import type { MemoryStore } from "../storage/sqlite-store.js";
 import type { ParsedChunk } from "./markdown-parser.js";
-import {
-  parseMemoryMd,
-  parseDailyLog,
-  parsePersonFile,
-  parseDateFromPath,
-} from "./markdown-parser.js";
+import { parseMemoryMd, parseDailyLog, parsePersonFile } from "./markdown-parser.js";
 
 // ---------------------------------------------------------------------------
 // Types
