@@ -9,15 +9,28 @@ import {
   nextWakeAtMs,
   recomputeNextRuns,
 } from "./jobs.js";
-import { locked } from "./locked.js";
+import { locked, lockedRead } from "./locked.js";
 import { ensureLoaded, persist, warnIfDisabled } from "./store.js";
-import { armTimer, emit, executeJob, runMissedJobs, stopTimer, wake } from "./timer.js";
+import { armTimer, emit, executeJob, findMissedJobs, stopTimer, wake } from "./timer.js";
 
 export async function start(state: CronServiceState) {
-  await locked(state, async () => {
+  // HEPHIE FIX (Bug 1 + Bug 2):
+  // Original code ran ALL missed jobs INSIDE the lock during start(), which:
+  // - Blocked management APIs (list, status, update, remove) for the entire
+  //   duration of missed job execution (potentially hours if a job hung)
+  // - Caused thundering-herd when many jobs fired simultaneously after restart
+  //
+  // New approach: Split into two phases.
+  // Phase 1 (locked): Load store, clear stale markers, find missed jobs, persist.
+  // Phase 2 (unlocked): Execute missed jobs OUTSIDE the lock with timeouts,
+  //   keeping management APIs responsive. Jobs run sequentially (onTimer
+  //   provides staggering for timer-driven batches).
+
+  // Phase 1: Prepare state and identify missed jobs (inside lock).
+  const missedJobs = await locked(state, async () => {
     if (!state.deps.cronEnabled) {
       state.deps.log.info({ enabled: false }, "cron: disabled");
-      return;
+      return [];
     }
     await ensureLoaded(state, { skipRecompute: true });
     const jobs = state.store?.jobs ?? [];
@@ -30,7 +43,9 @@ export async function start(state: CronServiceState) {
         job.state.runningAtMs = undefined;
       }
     }
-    await runMissedJobs(state);
+    // Find missed jobs BEFORE recomputeNextRuns, which would advance their
+    // nextRunAtMs to the future and mark them as no longer due.
+    const missed = findMissedJobs(state);
     recomputeNextRuns(state);
     await persist(state);
     armTimer(state);
@@ -38,11 +53,32 @@ export async function start(state: CronServiceState) {
       {
         enabled: true,
         jobs: state.store?.jobs.length ?? 0,
+        missedJobs: missed.length,
         nextWakeAtMs: nextWakeAtMs(state) ?? null,
       },
       "cron: started",
     );
+    return missed;
   });
+
+  // Phase 2: Execute missed jobs OUTSIDE the lock.
+  // This keeps management APIs responsive during startup catch-up.
+  if (missedJobs.length > 0) {
+    state.deps.log.info(
+      { count: missedJobs.length, jobIds: missedJobs.map((j) => j.id) },
+      "cron: executing missed jobs after restart (outside lock)",
+    );
+    for (const job of missedJobs) {
+      const now = state.deps.nowMs();
+      await executeJob(state, job, now, { forced: false });
+    }
+    // Persist results and re-arm timer after missed jobs complete.
+    await locked(state, async () => {
+      recomputeNextRuns(state);
+      await persist(state);
+      armTimer(state);
+    });
+  }
 }
 
 export function stop(state: CronServiceState) {
@@ -50,7 +86,8 @@ export function stop(state: CronServiceState) {
 }
 
 export async function status(state: CronServiceState) {
-  return await locked(state, async () => {
+  // HEPHIE: Use lockedRead so status doesn't block behind long job executions.
+  return await lockedRead(state, async () => {
     await ensureLoaded(state, { skipRecompute: true });
     if (state.store) {
       const changed = recomputeNextRuns(state);
@@ -68,7 +105,8 @@ export async function status(state: CronServiceState) {
 }
 
 export async function list(state: CronServiceState, opts?: { includeDisabled?: boolean }) {
-  return await locked(state, async () => {
+  // HEPHIE: Use lockedRead so list doesn't block behind long job executions.
+  return await lockedRead(state, async () => {
     await ensureLoaded(state, { skipRecompute: true });
     if (state.store) {
       const changed = recomputeNextRuns(state);
