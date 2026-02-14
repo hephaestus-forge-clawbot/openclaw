@@ -161,11 +161,6 @@ function buildInjection(
     return true;
   });
 
-  // Prefer cross-channel messages (messages from channels other than current)
-  // but include same-channel messages too for context continuity
-  const crossChannelMessages = candidates.filter((m) => m.channelType !== currentChannel);
-  const sameChannelMessages = candidates.filter((m) => m.channelType === currentChannel);
-
   // Score and sort by recency-weighted relevance
   const scored = candidates.map((msg) => ({
     msg,

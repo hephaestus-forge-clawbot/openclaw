@@ -304,7 +304,7 @@ describe("ThreadLinker", () => {
         now: 1000,
       });
 
-      const originalMsg = store.addMessage({
+      store.addMessage({
         threadId: thread.threadId,
         channelType: "slack",
         sender: "alice",

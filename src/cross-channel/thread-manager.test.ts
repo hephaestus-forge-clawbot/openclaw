@@ -2,7 +2,7 @@
  * Tests for Thread Manager (Hephie Phase 3.3)
  */
 
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { ThreadManager, type SummaryGenerator } from "./thread-manager.js";
 import { ThreadStore, type ThreadDatabase } from "./thread-store.js";
 
