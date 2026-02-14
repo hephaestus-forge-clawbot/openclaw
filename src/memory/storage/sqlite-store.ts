@@ -559,22 +559,32 @@ export class MemoryStore {
    * the specified boost tags. Useful when a query mentions a project,
    * person, or domain — matching chunks get a score boost.
    *
-   * @param boostTags - Partial MemoryTags; matching chunks get boosted.
-   * @param boostFactor - Multiplier for matching chunks (default 1.3).
+   * Supports two boost modes:
+   * 1. Exact tag match (via `boostTags`) → `exactBoostFactor` (default 2.0)
+   * 2. Semantic tag match (via `semanticBoostTags`) → `semanticBoostFactor` (default 1.5)
+   *
+   * @param boostTags - Partial MemoryTags for exact matching; chunks get exactBoostFactor.
+   * @param boostFactor - Multiplier for exact tag matches (default 2.0).
    */
   tagBoostedSearch(
     query: string,
     queryEmbedding: number[],
     boostTags: Partial<MemoryTags>,
     opts: SearchOpts = {},
-    boostFactor = 1.3,
+    boostFactor = 2.0,
+    semanticBoostTags?: Partial<MemoryTags>,
+    semanticBoostFactor = 1.5,
   ): SearchResult[] {
     const results = this.hybridSearch(query, queryEmbedding, opts);
 
-    // Apply tag boost
+    // Apply tag boosts
     for (const result of results) {
       if (this.chunkMatchesAnyTag(result.chunk, boostTags)) {
+        // Exact match boost (highest priority)
         result.score *= boostFactor;
+      } else if (semanticBoostTags && this.chunkMatchesAnyTag(result.chunk, semanticBoostTags)) {
+        // Semantic match boost (lower priority)
+        result.score *= semanticBoostFactor;
       }
     }
 

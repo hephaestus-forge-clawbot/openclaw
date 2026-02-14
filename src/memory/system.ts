@@ -33,6 +33,7 @@ import {
 import { createEmbeddingProvider } from "./embeddings/index.js";
 import { MemoryMaintenance, type MaintenanceConfig } from "./maintenance.js";
 import { MemoryStore } from "./storage/sqlite-store.js";
+import { TagEmbeddingManager } from "./tags/embedding-manager.js";
 import { flatTagsToStructured } from "./tags/extractor.js";
 
 // ── Options types ─────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ function autoSummary(content: string, maxLen = 150): string {
 export class MemorySystem {
   private readonly store: MemoryStore;
   private readonly embeddings: EmbeddingProvider | null;
+  private readonly tagEmbeddings: TagEmbeddingManager | null;
   private readonly injector: ContextInjector;
   private readonly maintenance: MemoryMaintenance;
   private closed = false;
@@ -105,11 +107,13 @@ export class MemorySystem {
   private constructor(
     store: MemoryStore,
     embeddings: EmbeddingProvider | null,
+    tagEmbeddings: TagEmbeddingManager | null,
     injector: ContextInjector,
     maintenance: MemoryMaintenance,
   ) {
     this.store = store;
     this.embeddings = embeddings;
+    this.tagEmbeddings = tagEmbeddings;
     this.injector = injector;
     this.maintenance = maintenance;
   }
@@ -130,10 +134,13 @@ export class MemorySystem {
       }
     }
 
+    // Initialize TagEmbeddingManager when embeddings are available
+    const tagEmbeddings = embeddings ? new TagEmbeddingManager(store, embeddings) : null;
+
     const injector = new ContextInjector(store, embeddings, config.contextBudget);
     const maintenance = new MemoryMaintenance(store, config.maintenance);
 
-    return new MemorySystem(store, embeddings, injector, maintenance);
+    return new MemorySystem(store, embeddings, tagEmbeddings, injector, maintenance);
   }
 
   // ── Convenience Methods ───────────────────────────────────────────────
@@ -188,7 +195,18 @@ export class MemorySystem {
       }
     }
 
-    return this.store.insert(input, embedding);
+    const id = this.store.insert(input, embedding);
+
+    // Auto-embed any new tags
+    if (tags && this.tagEmbeddings) {
+      try {
+        await this.tagEmbeddings.embedAllTags(tags);
+      } catch {
+        // Non-fatal — tag embeddings can be backfilled later
+      }
+    }
+
+    return id;
   }
 
   /**
@@ -316,6 +334,25 @@ export class MemorySystem {
   /** Access the context injector. */
   getContextInjector(): ContextInjector {
     return this.injector;
+  }
+
+  /** Access the tag embedding manager (may be null if embeddings are unavailable). */
+  getTagEmbeddingManager(): TagEmbeddingManager | null {
+    return this.tagEmbeddings;
+  }
+
+  /**
+   * Batch embed all tags that exist in memory chunks but lack embeddings.
+   * Useful for backfilling after enabling the tag embedding feature.
+   *
+   * @returns Number of newly embedded tags, or 0 if no embedding provider.
+   */
+  async embedMissingTags(): Promise<number> {
+    this.ensureOpen();
+    if (!this.tagEmbeddings) {
+      return 0;
+    }
+    return this.tagEmbeddings.embedMissingTags();
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
