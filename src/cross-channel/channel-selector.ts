@@ -24,7 +24,6 @@ import type {
   SmartChannelSelectorConfig,
   UrgencyLevel,
 } from "./channel-selector-types.js";
-import type { ReplyRoute } from "./reply-router.js";
 import type { ChannelType } from "./types.js";
 import type { UserAvailabilityTracker } from "./user-availability.js";
 import { DEFAULT_SELECTOR_CONFIG } from "./channel-selector-types.js";
