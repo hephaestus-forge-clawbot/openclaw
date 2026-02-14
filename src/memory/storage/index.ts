@@ -16,12 +16,14 @@
 export { MemoryStore } from "./sqlite-store.js";
 
 export type {
+  HorizonCategory,
   MemoryChunk,
   MemoryChunkInput,
   MemoryChunkUpdate,
   MemoryCategory,
   MemoryStoreConfig,
   MemoryStats,
+  MemoryTags,
   MemoryTier,
   PaginationOpts,
   SearchOpts,

@@ -121,7 +121,13 @@ describe("MemoryMaintenance — Promotion Cycle", () => {
       tier: "short_term",
       content: "tagged important fact",
       confidence: 0.5, // Below threshold
-      tags: ["important"],
+      tags: {
+        concepts: ["important"],
+        specialized: [],
+        people: [],
+        places: [],
+        projects: [],
+      },
     });
 
     const promoted = maintenance.runPromotionCycle();

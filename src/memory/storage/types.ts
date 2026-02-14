@@ -19,6 +19,29 @@ export type MemoryCategory =
   | "project"
   | "custom";
 
+/** Horizon categories for relevance prediction. */
+export type HorizonCategory =
+  | "ephemeral"
+  | "situational"
+  | "project_scoped"
+  | "relational"
+  | "identity"
+  | "policy";
+
+/** Structured multi-dimensional tags for memory chunks. */
+export interface MemoryTags {
+  /** General concepts: "machine learning", "infrastructure", "debugging" */
+  concepts: string[];
+  /** Domain-specific: "PPA", "meta-learning", "sqlite-vec", "phase transitions" */
+  specialized: string[];
+  /** People involved: "Antreas", "Laura", "Giannis" */
+  people: string[];
+  /** Locations: "Edinburgh", "Cyprus", "the forge" */
+  places: string[];
+  /** Projects: "Hephie", "structure-experiments", "ARIA" */
+  projects: string[];
+}
+
 /** A single memory chunk — the atomic unit of Hephie's memory. */
 export interface MemoryChunk {
   /** Unique identifier (UUID v4). */
@@ -42,8 +65,8 @@ export interface MemoryChunk {
   /** For per-person compartmentalization. */
   person?: string;
 
-  /** Searchable tags. */
-  tags?: string[];
+  /** Searchable tags (structured multi-dimensional). */
+  tags?: MemoryTags;
 
   /** Confidence score 0–1 (default 1.0). */
   confidence: number;
@@ -62,6 +85,18 @@ export interface MemoryChunk {
 
   /** Extensible JSON metadata. */
   metadata?: Record<string, unknown>;
+
+  /** Unix timestamp (ms) for predicted relevance horizon. null = permanent. */
+  relevanceHorizon?: number | null;
+
+  /** One-sentence reasoning for the horizon prediction. */
+  horizonReasoning?: string | null;
+
+  /** Confidence in the horizon prediction (0–1). */
+  horizonConfidence?: number | null;
+
+  /** Category of the horizon prediction. */
+  horizonCategory?: HorizonCategory | null;
 }
 
 /** Input for creating a new memory chunk. id/createdAt/updatedAt are auto-set if omitted. */
@@ -88,8 +123,11 @@ export interface SearchOpts {
   /** Filter to a specific category. */
   category?: string;
 
-  /** Filter by tags (any match). */
+  /** Filter by tags (any match — legacy flat format). */
   tags?: string[];
+
+  /** Filter by structured tags (intersection — ALL specified must match). */
+  structuredTags?: Partial<MemoryTags>;
 }
 
 /** A search result with relevance score. */

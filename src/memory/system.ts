@@ -17,6 +17,7 @@ import type { EmbeddingProvider, EmbeddingConfig } from "./embeddings/types.js";
 import type {
   MemoryChunk,
   MemoryChunkInput,
+  MemoryTags,
   MemoryTier,
   SearchOpts,
   SearchResult,
@@ -32,6 +33,7 @@ import {
 import { createEmbeddingProvider } from "./embeddings/index.js";
 import { MemoryMaintenance, type MaintenanceConfig } from "./maintenance.js";
 import { MemoryStore } from "./storage/sqlite-store.js";
+import { flatTagsToStructured } from "./tags/extractor.js";
 
 // ── Options types ─────────────────────────────────────────────────────────
 
@@ -45,8 +47,8 @@ export interface RememberOpts {
   summary?: string;
   /** Per-person compartmentalization. */
   person?: string;
-  /** Searchable tags. */
-  tags?: string[];
+  /** Searchable tags (structured or flat — flat will be auto-converted). */
+  tags?: string[] | MemoryTags;
   /** Origin context. */
   source?: string;
   /** Initial confidence (default: 0.7 for session, 1.0 for manual). */
@@ -153,13 +155,23 @@ export class MemorySystem {
       expiresAt = now + SHORT_TERM_RETENTION_MS;
     }
 
+    // Convert flat tags to structured MemoryTags if needed
+    let tags: MemoryTags | undefined;
+    if (opts.tags) {
+      if (Array.isArray(opts.tags)) {
+        tags = flatTagsToStructured(opts.tags);
+      } else {
+        tags = opts.tags;
+      }
+    }
+
     const input: MemoryChunkInput = {
       tier,
       content,
       summary: opts.summary ?? autoSummary(content),
       category: opts.category,
       person: opts.person,
-      tags: opts.tags,
+      tags,
       source: opts.source ?? "session",
       confidence: opts.confidence ?? 0.7,
       expiresAt,

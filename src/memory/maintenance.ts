@@ -9,6 +9,7 @@
  * - `runVacuum()` — SQLite vacuum + stats logging
  */
 
+import type { HorizonPredictor } from "./horizon/predictor.js";
 import type { MemoryStore } from "./storage/sqlite-store.js";
 import type { MemoryChunk } from "./storage/types.js";
 
@@ -35,6 +36,9 @@ export interface MaintenanceConfig {
 
   /** Decay rate per day for short-term chunks (multiplied by days since update). */
   shortTermDecayRate: number;
+
+  /** Days before horizon to trigger re-evaluation (default: 3). */
+  horizonReEvalDays: number;
 }
 
 const DEFAULT_CONFIG: MaintenanceConfig = {
@@ -45,6 +49,7 @@ const DEFAULT_CONFIG: MaintenanceConfig = {
   logStats: true,
   minimumConfidence: 0.1,
   shortTermDecayRate: 0.1,
+  horizonReEvalDays: 3,
 };
 
 // ── MaintenanceResult ─────────────────────────────────────────────────────
@@ -65,6 +70,7 @@ export interface MaintenanceResult {
 export class MemoryMaintenance {
   private readonly store: MemoryStore;
   private readonly config: MaintenanceConfig;
+  private horizonPredictor: HorizonPredictor | null = null;
 
   constructor(store: MemoryStore, configOverride?: Partial<MaintenanceConfig>) {
     this.store = store;
@@ -72,9 +78,18 @@ export class MemoryMaintenance {
   }
 
   /**
+   * Set the horizon predictor for LLM-based relevance prediction.
+   * When set, promotion and decay cycles will use it.
+   */
+  setHorizonPredictor(predictor: HorizonPredictor): void {
+    this.horizonPredictor = predictor;
+  }
+
+  /**
    * Run a decay cycle:
    * 1. Delete truly expired chunks (expiresAt < now).
-   * 2. Move short-term chunks older than retention period to episodic.
+   * 2. Decay chunks past their relevance horizon to episodic.
+   * 3. Move short-term chunks older than retention period to episodic.
    *
    * Returns count of chunks affected.
    */
@@ -86,7 +101,11 @@ export class MemoryMaintenance {
     const expired = this.store.deleteExpired();
     affected += expired;
 
-    // Step 2: Decay old short-term to episodic
+    // Step 2: Decay chunks past their relevance horizon
+    const horizonDecayed = this.decayPastHorizon();
+    affected += horizonDecayed;
+
+    // Step 3: Decay old short-term to episodic
     const retentionMs = this.config.shortTermRetentionDays * 24 * 60 * 60 * 1000;
     const cutoff = new Date(Date.now() - retentionMs);
     const decayed = this.store.decay(cutoff, "short_term", "episodic");
@@ -94,11 +113,37 @@ export class MemoryMaintenance {
 
     if (affected > 0) {
       console.log(
-        `[hephie:maintenance] Decay cycle: ${expired} expired deleted, ${decayed} short→episodic (${Date.now() - start}ms)`,
+        `[hephie:maintenance] Decay cycle: ${expired} expired deleted, ${horizonDecayed} horizon-decayed, ${decayed} short→episodic (${Date.now() - start}ms)`,
       );
     }
 
     return affected;
+  }
+
+  /**
+   * Decay chunks that have passed their relevance horizon.
+   * These are moved from their current tier to episodic.
+   */
+  private decayPastHorizon(): number {
+    const now = Date.now();
+    let decayed = 0;
+
+    // Check all tiers except episodic for chunks past their horizon
+    for (const tier of ["working", "short_term", "long_term"] as const) {
+      const chunks = this.store.getByTier(tier, { limit: 500 });
+      for (const chunk of chunks) {
+        if (chunk.relevanceHorizon != null && chunk.relevanceHorizon < now) {
+          try {
+            this.store.promote(chunk.id, "episodic");
+            decayed++;
+          } catch {
+            // Chunk may have been deleted concurrently
+          }
+        }
+      }
+    }
+
+    return decayed;
   }
 
   /**
@@ -110,12 +155,16 @@ export class MemoryMaintenance {
    * 2. Has an "important" tag
    * 3. Metadata indicates high access count (≥ 3)
    *
+   * If a horizon predictor is set, newly promoted chunks will have
+   * their relevance horizon predicted.
+   *
    * Returns count of chunks promoted.
    */
   runPromotionCycle(): number {
     const start = Date.now();
     const shortTermChunks = this.store.getByTier("short_term", { limit: 500 });
     let promoted = 0;
+    const promotedChunks: MemoryChunk[] = [];
     const errors: string[] = [];
 
     for (const chunk of shortTermChunks) {
@@ -123,12 +172,22 @@ export class MemoryMaintenance {
         if (this.shouldPromote(chunk)) {
           this.store.promote(chunk.id, "long_term");
           promoted++;
+          promotedChunks.push(chunk);
         }
       } catch (err) {
         errors.push(
           `Failed to promote ${chunk.id}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    }
+
+    // Trigger horizon prediction for promoted chunks (fire-and-forget)
+    if (this.horizonPredictor && promotedChunks.length > 0) {
+      this.predictHorizonsForPromoted(promotedChunks).catch((err) => {
+        console.error(
+          `[hephie:maintenance] Horizon prediction failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
     }
 
     if (promoted > 0 || errors.length > 0) {
@@ -138,6 +197,30 @@ export class MemoryMaintenance {
     }
 
     return promoted;
+  }
+
+  /**
+   * Predict horizons for newly promoted chunks and update them.
+   */
+  private async predictHorizonsForPromoted(chunks: MemoryChunk[]): Promise<void> {
+    if (!this.horizonPredictor) {
+      return;
+    }
+
+    const predictions = await this.horizonPredictor.predictBatch(chunks);
+
+    for (const [chunkId, prediction] of Array.from(predictions.entries())) {
+      try {
+        this.store.update(chunkId, {
+          relevanceHorizon: prediction.horizon?.getTime() ?? null,
+          horizonReasoning: prediction.reasoning,
+          horizonConfidence: prediction.confidence,
+          horizonCategory: prediction.category,
+        });
+      } catch {
+        // Chunk may have been modified/deleted concurrently
+      }
+    }
   }
 
   /**
@@ -206,13 +289,22 @@ export class MemoryMaintenance {
       return true;
     }
 
-    // Criterion 2: Has an important tag
-    if (chunk.tags && chunk.tags.length > 0) {
-      const hasImportantTag = chunk.tags.some((t) =>
-        this.config.importantTags.includes(t.toLowerCase()),
-      );
-      if (hasImportantTag) {
-        return true;
+    // Criterion 2: Has an important tag (check all dimensions of structured tags)
+    if (chunk.tags) {
+      const allTagValues = [
+        ...chunk.tags.concepts,
+        ...chunk.tags.specialized,
+        ...chunk.tags.people,
+        ...chunk.tags.places,
+        ...chunk.tags.projects,
+      ];
+      if (allTagValues.length > 0) {
+        const hasImportantTag = allTagValues.some((t) =>
+          this.config.importantTags.includes(t.toLowerCase()),
+        );
+        if (hasImportantTag) {
+          return true;
+        }
       }
     }
 

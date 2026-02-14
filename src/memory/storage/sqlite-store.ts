@@ -16,6 +16,7 @@ import type {
   MemoryChunkUpdate,
   MemoryStoreConfig,
   MemoryStats,
+  MemoryTags,
   MemoryTier,
   PaginationOpts,
   SearchOpts,
@@ -25,6 +26,7 @@ import type {
 import { loadSqliteVecExtension } from "../sqlite-vec.js";
 // Re-use the project's sqlite helper to get node:sqlite with the warning filter.
 import { requireNodeSqlite } from "../sqlite.js";
+import { flattenTags } from "../tags/extractor.js";
 import {
   createChunksTable,
   createFtsTable,
@@ -53,6 +55,50 @@ interface ChunkRow {
   promoted_at: number | null;
   expires_at: number | null;
   metadata: string | null;
+  relevance_horizon: number | null;
+  horizon_reasoning: string | null;
+  horizon_confidence: number | null;
+  horizon_category: string | null;
+}
+
+/**
+ * Parse tags from the database. Handles both legacy flat arrays and
+ * structured MemoryTags JSON.
+ */
+function parseTags(raw: string | null): MemoryTags | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    // Legacy format: string[]
+    if (Array.isArray(parsed)) {
+      // Import dynamically would be circular, inline the conversion
+      const result: MemoryTags = {
+        concepts: [],
+        specialized: [],
+        people: [],
+        places: [],
+        projects: [],
+      };
+      // Put legacy flat tags into concepts as a fallback
+      result.concepts = parsed;
+      return result;
+    }
+    // New structured format
+    if (typeof parsed === "object" && parsed !== null) {
+      return {
+        concepts: parsed.concepts ?? [],
+        specialized: parsed.specialized ?? [],
+        people: parsed.people ?? [],
+        places: parsed.places ?? [],
+        projects: parsed.projects ?? [],
+      };
+    }
+  } catch {
+    // Malformed JSON — ignore
+  }
+  return undefined;
 }
 
 function rowToChunk(row: ChunkRow): MemoryChunk {
@@ -64,13 +110,17 @@ function rowToChunk(row: ChunkRow): MemoryChunk {
     source: row.source ?? undefined,
     category: row.category ?? undefined,
     person: row.person ?? undefined,
-    tags: row.tags ? (JSON.parse(row.tags) as string[]) : undefined,
+    tags: parseTags(row.tags),
     confidence: row.confidence,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     promotedAt: row.promoted_at ?? undefined,
     expiresAt: row.expires_at ?? undefined,
     metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : undefined,
+    relevanceHorizon: row.relevance_horizon ?? undefined,
+    horizonReasoning: row.horizon_reasoning ?? undefined,
+    horizonConfidence: row.horizon_confidence ?? undefined,
+    horizonCategory: row.horizon_category as MemoryChunk["horizonCategory"],
   };
 }
 
@@ -178,8 +228,9 @@ export class MemoryStore {
       const stmt = this.db.prepare(`
         INSERT INTO memory_chunks
           (id, tier, content, summary, source, category, person, tags,
-           confidence, created_at, updated_at, promoted_at, expires_at, metadata)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           confidence, created_at, updated_at, promoted_at, expires_at, metadata,
+           relevance_horizon, horizon_reasoning, horizon_confidence, horizon_category)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run(
         chunk.id,
@@ -196,21 +247,21 @@ export class MemoryStore {
         chunk.promotedAt ?? null,
         chunk.expiresAt ?? null,
         chunk.metadata ? JSON.stringify(chunk.metadata) : null,
+        chunk.relevanceHorizon ?? null,
+        chunk.horizonReasoning ?? null,
+        chunk.horizonConfidence ?? null,
+        chunk.horizonCategory ?? null,
       );
 
-      // Insert into FTS
+      // Insert into FTS — flatten structured tags for text search
       if (this.ftsAvailable) {
+        const tagsText = chunk.tags ? flattenTags(chunk.tags).join(" ") : "";
         this.db
           .prepare(
             `INSERT INTO ${FTS_TABLE} (chunk_id, content, summary, tags)
              VALUES (?, ?, ?, ?)`,
           )
-          .run(
-            chunk.id,
-            chunk.content,
-            chunk.summary ?? "",
-            chunk.tags ? chunk.tags.join(" ") : "",
-          );
+          .run(chunk.id, chunk.content, chunk.summary ?? "", tagsText);
       }
 
       // Insert embedding
@@ -252,6 +303,10 @@ export class MemoryStore {
       promotedAt: ["promoted_at", (v) => (v as number) ?? null],
       expiresAt: ["expires_at", (v) => (v as number) ?? null],
       metadata: ["metadata", (v) => (v ? JSON.stringify(v) : null)],
+      relevanceHorizon: ["relevance_horizon", (v) => (v as number) ?? null],
+      horizonReasoning: ["horizon_reasoning", (v) => (v as string) ?? null],
+      horizonConfidence: ["horizon_confidence", (v) => (v as number) ?? null],
+      horizonCategory: ["horizon_category", (v) => (v as string) ?? null],
     };
 
     for (const [key, [col, transform]] of Object.entries(map)) {
@@ -284,12 +339,13 @@ export class MemoryStore {
         // Delete old FTS entry and re-insert
         this.db.prepare(`DELETE FROM ${FTS_TABLE} WHERE chunk_id = ?`).run(id);
         const merged = { ...existing, ...updates };
+        const tagsText = merged.tags ? flattenTags(merged.tags).join(" ") : "";
         this.db
           .prepare(
             `INSERT INTO ${FTS_TABLE} (chunk_id, content, summary, tags)
              VALUES (?, ?, ?, ?)`,
           )
-          .run(id, merged.content, merged.summary ?? "", merged.tags ? merged.tags.join(" ") : "");
+          .run(id, merged.content, merged.summary ?? "", tagsText);
       }
 
       // Update embedding
@@ -490,6 +546,56 @@ export class MemoryStore {
       .slice(0, limit);
 
     return merged;
+  }
+
+  /**
+   * Tag-boosted hybrid search.
+   *
+   * Performs hybrid search, then boosts results whose tags match
+   * the specified boost tags. Useful when a query mentions a project,
+   * person, or domain — matching chunks get a score boost.
+   *
+   * @param boostTags - Partial MemoryTags; matching chunks get boosted.
+   * @param boostFactor - Multiplier for matching chunks (default 1.3).
+   */
+  tagBoostedSearch(
+    query: string,
+    queryEmbedding: number[],
+    boostTags: Partial<MemoryTags>,
+    opts: SearchOpts = {},
+    boostFactor = 1.3,
+  ): SearchResult[] {
+    const results = this.hybridSearch(query, queryEmbedding, opts);
+
+    // Apply tag boost
+    for (const result of results) {
+      if (this.chunkMatchesAnyTag(result.chunk, boostTags)) {
+        result.score *= boostFactor;
+      }
+    }
+
+    // Re-sort after boosting
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, opts.limit ?? 10);
+  }
+
+  /**
+   * Check if a chunk matches any tag in the given partial tag set.
+   */
+  private chunkMatchesAnyTag(chunk: MemoryChunk, boostTags: Partial<MemoryTags>): boolean {
+    if (!chunk.tags) {
+      return false;
+    }
+    for (const [dim, values] of Object.entries(boostTags)) {
+      if (!values || values.length === 0) {
+        continue;
+      }
+      const chunkValues = chunk.tags[dim as keyof MemoryTags] ?? [];
+      if (values.some((v: string) => chunkValues.includes(v))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Tier operations ───────────────────────────────────────────────────
@@ -745,10 +851,27 @@ export class MemoryStore {
     if (opts.category && chunk.category !== opts.category) {
       return false;
     }
+    // Legacy flat tag filter (any match)
     if (opts.tags && opts.tags.length > 0) {
-      const chunkTags = chunk.tags ?? [];
-      if (!opts.tags.some((t) => chunkTags.includes(t))) {
+      const chunkFlat = chunk.tags ? flattenTags(chunk.tags) : [];
+      if (!opts.tags.some((t) => chunkFlat.includes(t))) {
         return false;
+      }
+    }
+    // Structured tag filter (intersection — ALL specified dimensions must match)
+    if (opts.structuredTags) {
+      if (!chunk.tags) {
+        return false;
+      }
+      for (const [dim, requiredValues] of Object.entries(opts.structuredTags)) {
+        if (!requiredValues || requiredValues.length === 0) {
+          continue;
+        }
+        const chunkValues = chunk.tags[dim as keyof MemoryTags] ?? [];
+        // ALL required values must be present in this dimension
+        if (!requiredValues.every((v: string) => chunkValues.includes(v))) {
+          return false;
+        }
       }
     }
     return true;

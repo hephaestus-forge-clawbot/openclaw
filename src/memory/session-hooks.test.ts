@@ -178,9 +178,22 @@ describe("SessionHooks", () => {
     const result = await hooks.onCompaction(messages);
     expect(result.factsStored).toBeGreaterThan(0);
 
-    // Should have a summary chunk
+    // Should have a summary chunk — tags are now structured MemoryTags
     const chunks = system.getByTier("short_term");
-    const summaryChunk = chunks.find((c) => c.tags?.includes("session-summary"));
+    const summaryChunk = chunks.find((c) => {
+      if (!c.tags) {
+        return false;
+      }
+      // "session-summary" is a flat tag, so it ends up in concepts after conversion
+      const allTags = [
+        ...c.tags.concepts,
+        ...c.tags.specialized,
+        ...c.tags.people,
+        ...c.tags.places,
+        ...c.tags.projects,
+      ];
+      return allTags.includes("session-summary");
+    });
     expect(summaryChunk).toBeDefined();
   });
 

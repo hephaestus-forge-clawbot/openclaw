@@ -7,7 +7,7 @@
 import type { DatabaseSync } from "node:sqlite";
 
 /** Current schema version. Bump when adding migrations. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Name of the vector virtual table. */
 export const VEC_TABLE = "memory_embeddings";
@@ -34,7 +34,11 @@ export function createChunksTable(db: DatabaseSync): void {
       updated_at INTEGER NOT NULL,
       promoted_at INTEGER,
       expires_at INTEGER,
-      metadata TEXT
+      metadata TEXT,
+      relevance_horizon INTEGER,
+      horizon_reasoning TEXT,
+      horizon_confidence REAL,
+      horizon_category TEXT
     );
   `);
 
@@ -45,6 +49,9 @@ export function createChunksTable(db: DatabaseSync): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_mc_created_at ON memory_chunks(created_at);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_mc_updated_at ON memory_chunks(updated_at);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_mc_expires_at ON memory_chunks(expires_at);`);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_mc_relevance_horizon ON memory_chunks(relevance_horizon);`,
+  );
 }
 
 /**
@@ -130,7 +137,30 @@ export function runMigrations(db: DatabaseSync): void {
   }
 
   // Migration 0 → 1: initial schema (tables created above)
-  // Future migrations go here as `if (current < 2) { ... }`
+
+  // Migration 1 → 2: add horizon columns for relevance prediction
+  if (current < 2) {
+    // Add horizon columns (these may already exist on fresh DBs created with v2 schema)
+    const columns = db.prepare(`PRAGMA table_info(memory_chunks)`).all() as Array<{ name: string }>;
+    const columnNames = new Set(columns.map((c) => c.name));
+
+    if (!columnNames.has("relevance_horizon")) {
+      db.exec(`ALTER TABLE memory_chunks ADD COLUMN relevance_horizon INTEGER;`);
+    }
+    if (!columnNames.has("horizon_reasoning")) {
+      db.exec(`ALTER TABLE memory_chunks ADD COLUMN horizon_reasoning TEXT;`);
+    }
+    if (!columnNames.has("horizon_confidence")) {
+      db.exec(`ALTER TABLE memory_chunks ADD COLUMN horizon_confidence REAL;`);
+    }
+    if (!columnNames.has("horizon_category")) {
+      db.exec(`ALTER TABLE memory_chunks ADD COLUMN horizon_category TEXT;`);
+    }
+
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_mc_relevance_horizon ON memory_chunks(relevance_horizon);`,
+    );
+  }
 
   setSchemaVersion(db, SCHEMA_VERSION);
 }

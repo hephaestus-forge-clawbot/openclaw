@@ -121,32 +121,42 @@ describe("extractPerson", () => {
 // ---------------------------------------------------------------------------
 
 describe("extractTags", () => {
-  it("extracts words from header paths", () => {
+  it("extracts structured tags from header paths and content", () => {
     const tags = extractTags("## Core Truths", "some content about the forge");
-    expect(tags).toContain("core");
-    expect(tags).toContain("truths");
-    expect(tags).toContain("forge");
+    // Structured MemoryTags object
+    expect(tags.places).toContain("the forge");
+    // Header keywords go into concepts
+    expect(tags.concepts).toContain("core");
+    expect(tags.concepts).toContain("truths");
   });
 
-  it("detects content-based tags", () => {
+  it("detects content-based tags across dimensions", () => {
     const tags = extractTags("## Section", "We ran GPU experiments on the forge with ARIA");
-    expect(tags).toContain("gpu");
-    expect(tags).toContain("forge");
-    expect(tags).toContain("aria");
-    expect(tags).toContain("experiment");
+    expect(tags.specialized).toContain("GPU");
+    expect(tags.places).toContain("the forge");
+    expect(tags.projects).toContain("ARIA");
+    expect(tags.concepts).toContain("experimentation");
   });
 
-  it("skips date-like tokens", () => {
-    const tags = extractTags("## 2026-02-13", "something");
-    expect(tags).not.toContain("2026-02-13");
-    expect(tags).not.toContain("2026");
+  it("skips date-like tokens in header keywords", () => {
+    const tags = extractTags("## 2026-02-13", "something simple");
+    // The extracted concepts from header should not contain the date
+    const allConcepts = tags.concepts;
+    expect(allConcepts).not.toContain("2026-02-13");
+    expect(allConcepts).not.toContain("2026");
   });
 
-  it("caps at 15 tags", () => {
-    const longContent =
-      "forge GPU research axiotic aria moltbook paper experiment hypothesis slack telegram whatsapp discord cron memory embedding extra extra2";
-    const tags = extractTags("## Many Tags Here For Testing Purposes", longContent);
-    expect(tags.length).toBeLessThanOrEqual(15);
+  it("returns MemoryTags with all dimensions", () => {
+    const tags = extractTags("## Test", "Antreas in Edinburgh working on Hephie with PPA");
+    expect(tags).toHaveProperty("concepts");
+    expect(tags).toHaveProperty("specialized");
+    expect(tags).toHaveProperty("people");
+    expect(tags).toHaveProperty("places");
+    expect(tags).toHaveProperty("projects");
+    expect(tags.people).toContain("Antreas");
+    expect(tags.places).toContain("Edinburgh");
+    expect(tags.projects).toContain("Hephie");
+    expect(tags.specialized).toContain("PPA");
   });
 });
 

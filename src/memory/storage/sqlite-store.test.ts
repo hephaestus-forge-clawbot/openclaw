@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { MemoryChunkInput } from "./types.js";
+import type { MemoryChunkInput, MemoryTags } from "./types.js";
 import { MemoryStore } from "./sqlite-store.js";
 
 /** Helper: create an in-memory store. */
@@ -70,6 +70,13 @@ describe("MemoryStore — CRUD", () => {
   });
 
   it("inserts with all fields", () => {
+    const structuredTags: MemoryTags = {
+      concepts: ["important"],
+      specialized: [],
+      people: ["Father"],
+      places: [],
+      projects: ["project-x"],
+    };
     const id = store.insert(
       makeChunk({
         tier: "long_term",
@@ -78,7 +85,7 @@ describe("MemoryStore — CRUD", () => {
         source: "telegram:main",
         category: "decision",
         person: "Father",
-        tags: ["important", "project-x"],
+        tags: structuredTags,
         confidence: 0.95,
         metadata: { key: "value", nested: { a: 1 } },
       }),
@@ -89,7 +96,7 @@ describe("MemoryStore — CRUD", () => {
     expect(chunk.source).toBe("telegram:main");
     expect(chunk.category).toBe("decision");
     expect(chunk.person).toBe("Father");
-    expect(chunk.tags).toEqual(["important", "project-x"]);
+    expect(chunk.tags).toEqual(structuredTags);
     expect(chunk.confidence).toBe(0.95);
     expect(chunk.metadata).toEqual({ key: "value", nested: { a: 1 } });
   });
@@ -157,7 +164,18 @@ describe("MemoryStore — Full-Text Search", () => {
   });
 
   it("finds chunks by tags", () => {
-    store.insert(makeChunk({ content: "tagged item", tags: ["memory", "hephie"] }));
+    store.insert(
+      makeChunk({
+        content: "tagged item",
+        tags: {
+          concepts: ["memory"],
+          specialized: [],
+          people: [],
+          places: [],
+          projects: ["hephie"],
+        },
+      }),
+    );
     store.insert(makeChunk({ content: "untagged item" }));
 
     const results = store.fullTextSearch("hephie");

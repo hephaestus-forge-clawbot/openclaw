@@ -6,7 +6,8 @@
  * 4-tier memory system.
  */
 
-import type { MemoryTier } from "../storage/types.js";
+import type { MemoryTags, MemoryTier } from "../storage/types.js";
+import { extractMemoryTags, mergeMemoryTags } from "../tags/extractor.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,8 +32,8 @@ export interface ParsedChunk {
   /** Extracted person name (if the chunk is about a specific person). */
   person?: string;
 
-  /** Tags derived from headers / content keywords. */
-  tags: string[];
+  /** Tags derived from headers / content keywords (structured multi-dimensional). */
+  tags: MemoryTags;
 
   /** Timestamp (Unix ms) — from file date or parsed from section headers. */
   createdAt: number;
@@ -185,11 +186,36 @@ export function stripMarkdown(md: string): string {
 
 /**
  * Extract tags from a header path and chunk content.
+ *
+ * Returns structured MemoryTags using the multi-dimensional tag extractor,
+ * with additional header-derived keywords merged into the concepts dimension.
  */
-export function extractTags(contextPath: string, content: string): string[] {
+export function extractTags(contextPath: string, content: string): MemoryTags {
+  // Use the structured tag extractor for content + context
+  const structuredTags = extractMemoryTags(content, contextPath);
+
+  // Also extract header-derived keywords and merge into concepts
+  const headerKeywords = extractHeaderKeywords(contextPath);
+  if (headerKeywords.length > 0) {
+    const merged = mergeMemoryTags(structuredTags, {
+      concepts: headerKeywords,
+      specialized: [],
+      people: [],
+      places: [],
+      projects: [],
+    });
+    return merged;
+  }
+
+  return structuredTags;
+}
+
+/**
+ * Extract keyword tags from context path headers (legacy behavior).
+ */
+function extractHeaderKeywords(contextPath: string): string[] {
   const tags = new Set<string>();
 
-  // Extract words from headers
   const headerWords = contextPath
     .replace(/^#+\s*/gm, "")
     .replace(/[>#—\-|]/g, " ")
@@ -208,58 +234,7 @@ export function extractTags(contextPath: string, content: string): string[] {
     tags.add(word);
   }
 
-  // Content-based tags
-  const lower = content.toLowerCase();
-  if (lower.includes("forge")) {
-    tags.add("forge");
-  }
-  if (lower.includes("gpu")) {
-    tags.add("gpu");
-  }
-  if (lower.includes("research")) {
-    tags.add("research");
-  }
-  if (lower.includes("axiotic")) {
-    tags.add("axiotic");
-  }
-  if (lower.includes("aria")) {
-    tags.add("aria");
-  }
-  if (lower.includes("moltbook") || lower.includes("moltbot")) {
-    tags.add("moltbook");
-  }
-  if (lower.includes("paper")) {
-    tags.add("paper");
-  }
-  if (lower.includes("experiment")) {
-    tags.add("experiment");
-  }
-  if (lower.includes("hypothesis")) {
-    tags.add("hypothesis");
-  }
-  if (lower.includes("slack")) {
-    tags.add("slack");
-  }
-  if (lower.includes("telegram")) {
-    tags.add("telegram");
-  }
-  if (lower.includes("whatsapp")) {
-    tags.add("whatsapp");
-  }
-  if (lower.includes("discord")) {
-    tags.add("discord");
-  }
-  if (lower.includes("cron")) {
-    tags.add("cron");
-  }
-  if (lower.includes("memory")) {
-    tags.add("memory");
-  }
-  if (lower.includes("embedding")) {
-    tags.add("embedding");
-  }
-
-  return [...tags].slice(0, 15); // Cap at 15 tags
+  return [...tags].slice(0, 10);
 }
 
 // ---------------------------------------------------------------------------
